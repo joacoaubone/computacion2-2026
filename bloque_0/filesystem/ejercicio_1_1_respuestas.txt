@@ -1,0 +1,16 @@
+1- comando utilizado: ls /etc | wc -l
+hay 77 archivos
+
+2- comando utilizado: stat /etc/passwd
+tamaño es de 9344 bytes
+
+3- comando utilizado: file /dev/null
+es un character special
+
+4- 
+
+5- comando utilizado: ls -i ~/.zshrc
+el numero es 824866
+
+6. comando utilizado: stat /Users
+tiene 5 enlaces duros
