@@ -17,9 +17,13 @@ def listar_procesos(limite=10):
             print(f"PID {pid:>6}  (sin acceso)")
 
 
-if __name__ == '__main__':
+def main():
     print(f"Linux version: {os.uname().release}")
     total = len([d for d in os.listdir('/proc') if d.isdigit()])
     print(f"Procesos visibles: {total}")
     print("\nPrimeros 10 procesos:")
     listar_procesos()
+
+
+if __name__ == '__main__':
+    main()
