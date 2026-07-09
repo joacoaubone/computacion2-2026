@@ -1,7 +1,5 @@
 # Dudas
 
-## Sesión 2 — Etapa 1 (multiproceso)
-
 ### Diferencia entre `shutdown_event.wait(timeout=X)` y `time.sleep(X)`
 
 - `time.sleep(X)` duerme el proceso por X segundos sin posibilidad de interrumpirlo antes.
