@@ -5,6 +5,10 @@ from recolector import recolector_loop
 from analizadores.resumen import resumen_loop
 from analizadores.memoria import memoria_loop
 from analizadores.sistema import sistema_loop
+from analizadores.fds import fds_loop
+from analizadores.threads import threads_loop
+from analizadores.senales import senales_loop
+from analizadores.scheduling import scheduling_loop
 
 
 def main():
@@ -17,6 +21,10 @@ def main():
             'resumen': multiprocessing.Value('d', 2.0),
             'memoria': multiprocessing.Value('d', 3.0),
             'sistema': multiprocessing.Value('d', 2.0),
+            'fds': multiprocessing.Value('d', 5.0),
+            'threads': multiprocessing.Value('d', 2.0),
+            'senales': multiprocessing.Value('d', 10.0),
+            'scheduling': multiprocessing.Value('d', 10.0),
         }
 
         procesos = [
@@ -36,6 +44,22 @@ def main():
                 target=sistema_loop,
                 args=(snapshot, shutdown_event, intervalos['sistema']),
             ),
+            multiprocessing.Process(
+                target=fds_loop,
+                args=(snapshot, shutdown_event, intervalos['fds']),
+            ),
+            multiprocessing.Process(
+                target=threads_loop,
+                args=(snapshot, shutdown_event, intervalos['threads']),
+            ),
+            multiprocessing.Process(
+                target=senales_loop,
+                args=(snapshot, shutdown_event, intervalos['senales']),
+            ),
+            multiprocessing.Process(
+                target=scheduling_loop,
+                args=(snapshot, shutdown_event, intervalos['scheduling']),
+            ),
         ]
 
         for p in procesos:
@@ -49,12 +73,28 @@ def main():
                 resumen = snapshot.get('resumen', {})
                 memoria = snapshot.get('memoria', {})
                 sistema = snapshot.get('sistema', {})
+                fds = snapshot.get('fds', {})
+                threads = snapshot.get('threads', {})
+                senales = snapshot.get('senales', {})
+                scheduling = snapshot.get('scheduling', {})
                 pids = snapshot.get('pids', [])
 
+                ts_resumen = snapshot.get('resumen_ts', 0)
+                ts_memoria = snapshot.get('memoria_ts', 0)
+                ts_sistema = snapshot.get('sistema_ts', 0)
+                ts_fds = snapshot.get('fds_ts', 0)
+                ts_threads = snapshot.get('threads_ts', 0)
+                ts_senales = snapshot.get('senales_ts', 0)
+                ts_scheduling = snapshot.get('scheduling_ts', 0)
+
                 print(f"Monitor - PIDs: {len(pids)}")
-                print(f"Resumen: {snapshot.get('resumen_ts', 0):.1f}s  "
-                      f"Memoria: {snapshot.get('memoria_ts', 0):.1f}s  "
-                      f"Sistema: {snapshot.get('sistema_ts', 0):.1f}s")
+                status_line = (
+                    f"R:{ts_resumen:.0f}s M:{ts_memoria:.0f}s "
+                    f"S:{ts_sistema:.0f}s F:{ts_fds:.0f}s "
+                    f"T:{ts_threads:.0f}s N:{ts_senales:.0f}s "
+                    f"P:{ts_scheduling:.0f}s"
+                )
+                print(status_line)
                 print("-" * 90)
                 print(f"{'PID':>7}  {'NOMBRE':<20} {'ESTADO':<5} {'CPU%':<7} {'RSS(KB)':<9} {'THR':<4}")
                 print("-" * 90)
@@ -72,7 +112,7 @@ def main():
                     print(f"{pid:>7}  {nombre:<20} {estado:<5} {cpu:<7} {str(rss):<9} {thr:<4}")
 
                 if not resumen:
-                    print("(esperando datos del resumen...)")
+                    print("(esperando datos...)")
                     time.sleep(1)
                     continue
 
@@ -94,6 +134,10 @@ def main():
                 if top:
                     top_str = '  '.join(f"{t['name'][:10]}({t['cpu']:.1f}%)" for t in top)
                     print(f"Top CPU: {top_str}")
+
+                print(f"\n--- FDs activos: {len(fds)} procesos  "
+                      f"Threads: {len(threads)} procesos  "
+                      f"Scheduling: {len(scheduling)} procesos")
 
                 time.sleep(1)
 
