@@ -424,8 +424,48 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
     )
 
 
-def render_footer():
-    return Panel(
-        Text('1:R 2:M 3:F 4:T 5:S 6:P 7:G  \u2191\u2193 / u c +- q h'),
-        style='bold white on blue',
-    )
+NOMBRES_ORDEN = {0: 'CPU', 1: 'RSS', 2: 'PID'}
+
+
+def render_footer(filter_cmd='', sort_mode=0, intervalo=2.0, filter_mode=False,
+                  filter_text=''):
+    text = Text()
+
+    if filter_mode:
+        text.append('Filtrar: ', style='bold')
+        text.append(filter_text + '_')
+    else:
+        text.append('1:R 2:M 3:F 4:T 5:S 6:P 7:G', style='bold')
+        text.append('  \u2191\u2193')
+        text.append('  /filtro')
+        if filter_cmd:
+            text.append(f' [{filter_cmd}]', style='yellow')
+        text.append(f'  c:{NOMBRES_ORDEN.get(sort_mode, "?")}')
+        text.append(f'  +/-:{intervalo:.1f}s')
+        text.append('  h  q')
+
+    return Panel(text, style='bold white on blue')
+
+
+def render_ayuda():
+    text = Text()
+    text.append('  TECLAS DEL MONITOR\n\n', style='bold cyan')
+    text.append('  Navegación\n', style='bold')
+    text.append('    \u2191 / \u2193    Mover selección\n')
+    text.append('    Enter   Ver detalle del proceso\n')
+    text.append('    q       Salir\n\n')
+    text.append('  Vistas\n', style='bold')
+    text.append('    1-7     Cambiar vista (Resumen/Memoria/FDs/Threads/\n')
+    text.append('            Señales/Scheduling/Sistema)\n\n')
+    text.append('  Filtros y orden\n', style='bold')
+    text.append('    /       Filtrar por nombre de proceso\n')
+    text.append('    c       Cambiar orden (CPU/RSS/PID)\n\n')
+    text.append('  Intervalos\n', style='bold')
+    text.append('    +       Aumentar intervalo (+0.5s)\n')
+    text.append('    -       Disminuir intervalo (-0.5s)\n\n')
+    text.append('  Otros\n', style='bold')
+    text.append('    h/?     Mostrar esta ayuda\n')
+    text.append('    Enter   Cerrar vista / detalle / ayuda\n')
+    text.append('    Esc     Cerrar vista / detalle / ayuda\n')
+
+    return Panel(text, title='[bold]Ayuda[/]', border_style='cyan')

@@ -18,37 +18,9 @@ from display import (
     render_vista_resumen, render_vista_memoria,
     render_vista_fds, render_vista_threads,
     render_vista_senales, render_vista_scheduling,
-    render_vista_sistema, render_detalle, render_footer,
+    render_vista_sistema, render_detalle,
+    render_footer, render_ayuda,
 )
-
-
-def _dispatch_view(active_view, snapshot):
-    resumen = snapshot.get('resumen', {})
-    rows = shutil.get_terminal_size().lines
-    max_rows = max(rows - 7, 3)
-
-    if active_view == 1:
-        memoria = snapshot.get('memoria', {})
-        return render_vista_resumen(
-            resumen, memoria, 0, 0, '',
-            0, max_rows,
-        )
-    if active_view == 2:
-        memoria = snapshot.get('memoria', {})
-        return render_vista_memoria(resumen, memoria, 0, 0, max_rows)
-    if active_view == 3:
-        fds = snapshot.get('fds', {})
-        return render_vista_fds(resumen, fds, 0, 0, max_rows)
-    if active_view == 4:
-        threads = snapshot.get('threads', {})
-        return render_vista_threads(resumen, threads, 0, 0, max_rows)
-    if active_view == 5:
-        senales = snapshot.get('senales', {})
-        return render_vista_senales(resumen, senales, 0, 0, max_rows)
-    if active_view == 6:
-        scheduling = snapshot.get('scheduling', {})
-        return render_vista_scheduling(resumen, scheduling, 0, 0, max_rows)
-    return None, []
 
 
 def main():
@@ -110,8 +82,11 @@ def main():
         active_view = 1
         sort_mode = 0
         filter_cmd = ''
+        filter_mode = False
+        filter_text = ''
+        intervalo_global = 2.0
         detalle_pid = None
-        debug_tecla = ''
+        ayuda_mode = False
 
         layout = crear_layout()
         entrar_modo_raw()
@@ -121,8 +96,25 @@ def main():
                 while not shutdown_event.is_set():
                     pids = snapshot.get('pids', [])
 
+                    if ayuda_mode:
+                        layout['header'].update(
+                            render_header(len(pids), active_view, '')
+                        )
+                        layout['main'].update(render_ayuda())
+                        layout['footer'].update(
+                            Panel('Enter/Esc: volver', style='bold white on blue')
+                        )
+                        live.refresh()
+                        tecla = leer_tecla(0.25)
+                        if tecla in ('KEY_ENTER', 'ESC', 'q', 'h', '?'):
+                            ayuda_mode = False
+                        continue
+
                     if detalle_pid is not None:
-                        main_renderable = render_detalle(
+                        layout['header'].update(
+                            render_header(len(pids), active_view, '')
+                        )
+                        layout['main'].update(render_detalle(
                             detalle_pid,
                             snapshot.get('resumen', {}),
                             snapshot.get('memoria', {}),
@@ -130,11 +122,7 @@ def main():
                             snapshot.get('threads', {}),
                             snapshot.get('senales', {}),
                             snapshot.get('scheduling', {}),
-                        )
-                        layout['header'].update(
-                            render_header(len(pids), active_view, debug_tecla)
-                        )
-                        layout['main'].update(main_renderable)
+                        ))
                         layout['footer'].update(
                             Panel('Enter/Esc/q: volver', style='bold white on blue')
                         )
@@ -147,12 +135,43 @@ def main():
                     rows = shutil.get_terminal_size().lines
                     max_rows = max(rows - 7, 3)
 
+                    resumen = snapshot.get('resumen', {})
+                    memoria = snapshot.get('memoria', {})
+
                     if active_view == 7:
-                        sistema = snapshot.get('sistema', {})
-                        main_renderable = render_vista_sistema(sistema)
+                        main_renderable = render_vista_sistema(
+                            snapshot.get('sistema', {}),
+                        )
                         items = []
+                    elif active_view == 1:
+                        main_renderable, items = render_vista_resumen(
+                            resumen, memoria, selected_idx, sort_mode,
+                            filter_cmd, scroll_offset, max_rows,
+                        )
+                    elif active_view == 2:
+                        main_renderable, items = render_vista_memoria(
+                            resumen, memoria, selected_idx, scroll_offset, max_rows,
+                        )
+                    elif active_view == 3:
+                        main_renderable, items = render_vista_fds(
+                            resumen, snapshot.get('fds', {}),
+                            selected_idx, scroll_offset, max_rows,
+                        )
+                    elif active_view == 4:
+                        main_renderable, items = render_vista_threads(
+                            resumen, snapshot.get('threads', {}),
+                            selected_idx, scroll_offset, max_rows,
+                        )
+                    elif active_view == 5:
+                        main_renderable, items = render_vista_senales(
+                            resumen, snapshot.get('senales', {}),
+                            selected_idx, scroll_offset, max_rows,
+                        )
                     else:
-                        main_renderable, items = _dispatch_view(active_view, snapshot)
+                        main_renderable, items = render_vista_scheduling(
+                            resumen, snapshot.get('scheduling', {}),
+                            selected_idx, scroll_offset, max_rows,
+                        )
 
                     if items:
                         selected_idx = min(selected_idx, len(items) - 1)
@@ -164,49 +183,43 @@ def main():
                     if items and selected_idx >= scroll_offset + max_rows:
                         scroll_offset = selected_idx - max_rows + 1
 
-                    if active_view == 1 and items:
-                        memoria = snapshot.get('memoria', {})
-                        main_renderable, _ = render_vista_resumen(
-                            snapshot.get('resumen', {}), memoria,
-                            selected_idx, sort_mode, filter_cmd,
-                            scroll_offset, max_rows,
+                    if active_view == 1:
+                        main_renderable, items = render_vista_resumen(
+                            resumen, memoria, selected_idx, sort_mode,
+                            filter_cmd, scroll_offset, max_rows,
                         )
-                    elif 2 <= active_view <= 6 and items:
-                        resumen = snapshot.get('resumen', {})
-                        if active_view == 2:
-                            memoria = snapshot.get('memoria', {})
-                            main_renderable, _ = render_vista_memoria(
-                                resumen, memoria, selected_idx, scroll_offset, max_rows,
-                            )
-                        elif active_view == 3:
-                            fds = snapshot.get('fds', {})
-                            main_renderable, _ = render_vista_fds(
-                                resumen, fds, selected_idx, scroll_offset, max_rows,
-                            )
-                        elif active_view == 4:
-                            threads = snapshot.get('threads', {})
-                            main_renderable, _ = render_vista_threads(
-                                resumen, threads, selected_idx, scroll_offset, max_rows,
-                            )
-                        elif active_view == 5:
-                            senales = snapshot.get('senales', {})
-                            main_renderable, _ = render_vista_senales(
-                                resumen, senales, selected_idx, scroll_offset, max_rows,
-                            )
-                        elif active_view == 6:
-                            scheduling = snapshot.get('scheduling', {})
-                            main_renderable, _ = render_vista_scheduling(
-                                resumen, scheduling, selected_idx, scroll_offset, max_rows,
-                            )
 
-                    layout['header'].update(
-                        render_header(len(pids), active_view, debug_tecla)
-                    )
+                    layout['header'].update(render_header(len(pids), active_view, ''))
                     layout['main'].update(main_renderable)
-                    layout['footer'].update(render_footer())
+                    layout['footer'].update(render_footer(
+                        filter_cmd, sort_mode, intervalo_global,
+                        filter_mode, filter_text,
+                    ))
                     live.refresh()
 
                     tecla = leer_tecla(0.25)
+
+                    if filter_mode:
+                        if tecla is None:
+                            continue
+                        if tecla == 'KEY_ENTER':
+                            filter_cmd = filter_text
+                            filter_mode = False
+                            filter_text = ''
+                            selected_idx = 0
+                            scroll_offset = 0
+                            continue
+                        if tecla == 'ESC':
+                            filter_mode = False
+                            filter_text = ''
+                            continue
+                        if tecla == 'KEY_BACKSPACE':
+                            filter_text = filter_text[:-1]
+                            continue
+                        if isinstance(tecla, str) and len(tecla) == 1:
+                            filter_text += tecla
+                        continue
+
                     if tecla is None:
                         continue
                     if tecla == 'q':
@@ -214,31 +227,37 @@ def main():
                     if tecla == 'KEY_UP':
                         if items and selected_idx > 0:
                             selected_idx -= 1
-                        debug_tecla = ''
                     elif tecla == 'KEY_DOWN':
                         if items:
                             max_idx = len(items) - 1
                             if selected_idx < max_idx:
                                 selected_idx += 1
-                        debug_tecla = ''
                     elif tecla == 'KEY_ENTER':
                         if items and selected_idx < len(items):
-                            pid = items[selected_idx][0]
-                            detalle_pid = pid
-                        debug_tecla = ''
+                            detalle_pid = items[selected_idx][0]
                     elif tecla in ('1', '2', '3', '4', '5', '6', '7'):
                         active_view = int(tecla)
                         selected_idx = 0
                         scroll_offset = 0
-                        debug_tecla = ''
-                    elif tecla == 'ESC':
-                        debug_tecla = ''
-                    elif isinstance(tecla, str) and tecla.startswith('\x1b') and len(tecla) > 1:
-                        debug_tecla = repr(tecla)[1:-1]
-                    elif len(tecla) <= 2:
-                        debug_tecla = repr(tecla)[1:-1]
-                    else:
-                        debug_tecla = ''
+                    elif tecla == '/':
+                        filter_mode = True
+                        filter_text = ''
+                    elif tecla == 'c':
+                        sort_mode = (sort_mode + 1) % 3
+                        selected_idx = 0
+                        scroll_offset = 0
+                    elif tecla == '+':
+                        intervalo_global = min(intervalo_global + 0.5, 10.0)
+                        for v in intervalos.values():
+                            v.value = intervalo_global
+                    elif tecla == '-':
+                        intervalo_global = max(intervalo_global - 0.5, 0.5)
+                        for v in intervalos.values():
+                            v.value = intervalo_global
+                    elif tecla in ('h', '?'):
+                        ayuda_mode = True
+                    elif tecla == 'KEY_CTRLC':
+                        break
 
         except KeyboardInterrupt:
             pass
