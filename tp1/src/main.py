@@ -1,10 +1,15 @@
+import json
 import multiprocessing
+import os
 import shutil
+import signal
+import time
 
 from rich.live import Live
 from rich.panel import Panel
 
 from keyboard import entrar_modo_raw, salir_modo_raw, leer_tecla
+from senales import setup_señales, recibir_señales
 from recolector import recolector_loop
 from analizadores.resumen import resumen_loop
 from analizadores.memoria import memoria_loop
@@ -21,6 +26,31 @@ from display import (
     render_vista_sistema, render_detalle,
     render_footer, render_ayuda,
 )
+
+
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+
+
+def cargar_config(intervalos):
+    try:
+        with open(CONFIG_PATH) as f:
+            config = json.load(f)
+        for nombre, valor in config.get('intervalos', {}).items():
+            if nombre in intervalos:
+                intervalos[nombre].value = valor
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+
+def dump_snapshot(snapshot):
+    timestamp = int(time.time())
+    path = os.path.join(os.path.dirname(__file__), '..', f'dump_{timestamp}.json')
+    data = dict(snapshot)
+    for k, v in data.items():
+        if hasattr(v, 'items'):
+            data[k] = dict(v)
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2, default=str)
 
 
 def main():
@@ -77,6 +107,8 @@ def main():
         for p in procesos:
             p.start()
 
+        cargar_config(intervalos)
+
         selected_idx = 0
         scroll_offset = 0
         active_view = 1
@@ -87,8 +119,10 @@ def main():
         intervalo_global = 2.0
         detalle_pid = None
         ayuda_mode = False
+        verbose_mode = False
 
         layout = crear_layout()
+        setup_señales()
         entrar_modo_raw()
 
         try:
@@ -198,6 +232,19 @@ def main():
                     live.refresh()
 
                     tecla = leer_tecla(0.25)
+
+                    senal = recibir_señales(0)
+                    if senal is not None:
+                        if senal in (signal.SIGINT, signal.SIGTERM):
+                            break
+                        elif senal == signal.SIGHUP:
+                            cargar_config(intervalos)
+                        elif senal == signal.SIGUSR1:
+                            dump_snapshot(snapshot)
+                        elif senal == signal.SIGUSR2:
+                            verbose_mode = not verbose_mode
+                        elif senal == signal.SIGWINCH:
+                            pass
 
                     if filter_mode:
                         if tecla is None:
