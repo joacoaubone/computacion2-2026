@@ -32,13 +32,18 @@ def sistema_loop(snapshot, shutdown_event, intervalo):
             resumen.items(),
             key=lambda x: x[1].get('cpu_percent', 0),
             reverse=True,
-        )[:5]
+        )[:3]
 
         top_mem = sorted(
             resumen.items(),
             key=lambda x: memoria.get(x[0], {}).get('rss', 0),
             reverse=True,
-        )[:5]
+        )[:3]
+
+        por_estado = {}
+        for pid, d in resumen.items():
+            st = d.get('state', '?')
+            por_estado[st] = por_estado.get(st, 0) + 1
 
         datos = {
             'cpu': cpu_delta,
@@ -54,6 +59,8 @@ def sistema_loop(snapshot, shutdown_event, intervalo):
                 {'pid': p, 'name': resumen.get(p, {}).get('name', '?'), 'rss': memoria.get(p, {}).get('rss', 0)}
                 for p, _ in top_mem
             ],
+            'por_estado': por_estado,
+            'total_proc': len(resumen),
         }
 
         snapshot['sistema'] = datos

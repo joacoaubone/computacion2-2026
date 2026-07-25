@@ -35,7 +35,7 @@ def resumen_loop(snapshot, shutdown_event, intervalo):
                 'name': nombre,
                 'state': stat.get('state', '?') if stat else '?',
                 'ppid': stat.get('ppid', 0) if stat else 0,
-                'uid': status.get('Uid', 0),
+                'uid': str(status.get('Uid', '0')).split()[0],
                 'threads': stat.get('num_threads', 0) if stat else 0,
                 'cpu_percent': round(cpu, 1),
                 'cmdline': cmdline if cmdline else [],

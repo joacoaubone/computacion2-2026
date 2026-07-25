@@ -30,6 +30,13 @@ from display import (
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config.json')
 
+VIEW_MAP = {'r': 1, 'm': 2, 'f': 3, 't': 4, 's': 5, 'p': 6, 'g': 7}
+
+VIEW_INTERVAL = {
+    1: 'resumen', 2: 'memoria', 3: 'fds', 4: 'threads',
+    5: 'senales', 6: 'scheduling', 7: 'sistema',
+}
+
 
 def cargar_config(intervalos):
     try:
@@ -116,7 +123,9 @@ def main():
         filter_cmd = ''
         filter_mode = False
         filter_text = ''
-        intervalo_global = 2.0
+        filter_user_mode = False
+        filter_user_text = ''
+        filter_uid = ''
         detalle_pid = None
         ayuda_mode = False
         verbose_mode = False
@@ -220,14 +229,18 @@ def main():
                     if active_view == 1:
                         main_renderable, items = render_vista_resumen(
                             resumen, memoria, selected_idx, sort_mode,
-                            filter_cmd, scroll_offset, max_rows,
+                            filter_cmd, scroll_offset, max_rows, filter_uid,
                         )
 
                     layout['header'].update(render_header(len(pids), active_view, ''))
                     layout['main'].update(main_renderable)
+                    iv_key = VIEW_INTERVAL.get(active_view, 'resumen')
+                    iv_actual = intervalos[iv_key].value if iv_key in intervalos else 2.0
                     layout['footer'].update(render_footer(
-                        filter_cmd, sort_mode, intervalo_global,
+                        filter_cmd, sort_mode, iv_actual,
                         filter_mode, filter_text,
+                        filter_user_mode, filter_user_text,
+                        filter_uid,
                     ))
                     live.refresh()
 
@@ -267,6 +280,27 @@ def main():
                             filter_text += tecla
                         continue
 
+                    if filter_user_mode:
+                        if tecla is None:
+                            continue
+                        if tecla == 'KEY_ENTER':
+                            filter_uid = filter_user_text
+                            filter_user_mode = False
+                            filter_user_text = ''
+                            selected_idx = 0
+                            scroll_offset = 0
+                            continue
+                        if tecla == 'ESC':
+                            filter_user_mode = False
+                            filter_user_text = ''
+                            continue
+                        if tecla == 'KEY_BACKSPACE':
+                            filter_user_text = filter_user_text[:-1]
+                            continue
+                        if isinstance(tecla, str) and len(tecla) == 1 and tecla.isdigit():
+                            filter_user_text += tecla
+                        continue
+
                     if tecla is None:
                         continue
                     if tecla == 'q':
@@ -286,21 +320,28 @@ def main():
                         active_view = int(tecla)
                         selected_idx = 0
                         scroll_offset = 0
+                    elif tecla in VIEW_MAP:
+                        active_view = VIEW_MAP[tecla]
+                        selected_idx = 0
+                        scroll_offset = 0
                     elif tecla == '/':
                         filter_mode = True
                         filter_text = ''
+                    elif tecla == 'u':
+                        filter_user_mode = True
+                        filter_user_text = ''
                     elif tecla == 'c':
                         sort_mode = (sort_mode + 1) % 3
                         selected_idx = 0
                         scroll_offset = 0
                     elif tecla == '+':
-                        intervalo_global = min(intervalo_global + 0.5, 10.0)
-                        for v in intervalos.values():
-                            v.value = intervalo_global
+                        iv_key = VIEW_INTERVAL.get(active_view)
+                        if iv_key and iv_key in intervalos:
+                            intervalos[iv_key].value = min(intervalos[iv_key].value + 0.5, 10.0)
                     elif tecla == '-':
-                        intervalo_global = max(intervalo_global - 0.5, 0.5)
-                        for v in intervalos.values():
-                            v.value = intervalo_global
+                        iv_key = VIEW_INTERVAL.get(active_view)
+                        if iv_key and iv_key in intervalos:
+                            intervalos[iv_key].value = max(intervalos[iv_key].value - 0.5, 0.5)
                     elif tecla in ('h', '?'):
                         ayuda_mode = True
                     elif tecla == 'KEY_CTRLC':
