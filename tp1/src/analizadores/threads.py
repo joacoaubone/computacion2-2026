@@ -39,6 +39,8 @@ def threads_loop(snapshot, shutdown_event, intervalo):
                     'name': nombre,
                     'state': estado,
                     'cpu_percent': round(cpu, 1),
+                    'ctxt_vol': info_status.get('voluntary_ctxt_switches', 0) if info_status else 0,
+                    'ctxt_invol': info_status.get('nonvoluntary_ctxt_switches', 0) if info_status else 0,
                 })
             datos[pid] = hilos
 

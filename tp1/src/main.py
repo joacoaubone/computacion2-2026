@@ -20,6 +20,7 @@ from analizadores.senales import senales_loop
 from analizadores.scheduling import scheduling_loop
 from display import (
     crear_layout, render_header,
+    render_tabla_procesos,
     render_vista_resumen, render_vista_memoria,
     render_vista_fds, render_vista_threads,
     render_vista_senales, render_vista_scheduling,
@@ -143,12 +144,34 @@ def main():
             with Live(layout, refresh_per_second=4, screen=True) as live:
                 while not shutdown_event.is_set():
                     pids = snapshot.get('pids', [])
+                    rows = shutil.get_terminal_size().lines
+                    max_rows = max(rows - 11, 3)
+
+                    resumen = snapshot.get('resumen', {})
+                    memoria = snapshot.get('memoria', {})
+
+                    tabla_renderable, items = render_tabla_procesos(
+                        resumen, memoria, selected_idx, sort_mode,
+                        filter_cmd, scroll_offset, max_rows, filter_uid,
+                    )
+
+                    if items:
+                        selected_idx = min(selected_idx, len(items) - 1)
+                    else:
+                        selected_idx = 0
+
+                    if selected_idx < scroll_offset:
+                        scroll_offset = selected_idx
+                    if items and selected_idx >= scroll_offset + max_rows:
+                        scroll_offset = selected_idx - max_rows + 1
 
                     if ayuda_mode:
-                        layout['header'].update(
-                            render_header(len(pids), active_view, '')
-                        )
-                        layout['main'].update(render_ayuda())
+                        layout['header'].update(render_header(
+                            len(pids), active_view,
+                            'VERBOSE' if verbose_mode else '',
+                        ))
+                        layout['table'].update(tabla_renderable)
+                        layout['detail'].update(render_ayuda())
                         layout['footer'].update(
                             Panel('Enter/Esc: volver', style='bold white on blue')
                         )
@@ -159,10 +182,12 @@ def main():
                         continue
 
                     if detalle_pid is not None:
-                        layout['header'].update(
-                            render_header(len(pids), active_view, '')
-                        )
-                        layout['main'].update(render_detalle(
+                        layout['header'].update(render_header(
+                            len(pids), active_view,
+                            'VERBOSE' if verbose_mode else '',
+                        ))
+                        layout['table'].update(tabla_renderable)
+                        layout['detail'].update(render_detalle(
                             detalle_pid,
                             snapshot.get('resumen', {}),
                             snapshot.get('memoria', {}),
@@ -180,71 +205,58 @@ def main():
                             detalle_pid = None
                         continue
 
-                    rows = shutil.get_terminal_size().lines
-                    max_rows = max(rows - 7, 3)
-
-                    resumen = snapshot.get('resumen', {})
-                    memoria = snapshot.get('memoria', {})
-
                     if active_view == 7:
-                        main_renderable = render_vista_sistema(
+                        detail_renderable = render_vista_sistema(
                             snapshot.get('sistema', {}),
                         )
-                        items = []
                     elif active_view == 1:
-                        main_renderable, items = render_vista_resumen(
+                        detail_renderable, _ = render_vista_resumen(
                             resumen, memoria, selected_idx, sort_mode,
                             filter_cmd, scroll_offset, max_rows, filter_uid,
                         )
                     elif active_view == 2:
-                        main_renderable, items = render_vista_memoria(
+                        detail_renderable, _ = render_vista_memoria(
                             resumen, memoria, selected_idx, scroll_offset, max_rows,
                             filter_uid,
                         )
                     elif active_view == 3:
-                        main_renderable, items = render_vista_fds(
+                        detail_renderable, _ = render_vista_fds(
                             resumen, snapshot.get('fds', {}),
                             selected_idx, scroll_offset, max_rows,
                             filter_uid,
                         )
                     elif active_view == 4:
-                        main_renderable, items = render_vista_threads(
+                        detail_renderable, _ = render_vista_threads(
                             resumen, snapshot.get('threads', {}),
                             selected_idx, scroll_offset, max_rows,
                             filter_uid,
                         )
                     elif active_view == 5:
-                        main_renderable, items = render_vista_senales(
+                        detail_renderable, _ = render_vista_senales(
                             resumen, snapshot.get('senales', {}),
                             selected_idx, scroll_offset, max_rows,
                             filter_uid,
                         )
                     else:
-                        main_renderable, items = render_vista_scheduling(
+                        detail_renderable, _ = render_vista_scheduling(
                             resumen, snapshot.get('scheduling', {}),
                             selected_idx, scroll_offset, max_rows,
                             filter_uid,
                         )
 
-                    if items:
-                        selected_idx = min(selected_idx, len(items) - 1)
-                    else:
-                        selected_idx = 0
-
-                    if selected_idx < scroll_offset:
-                        scroll_offset = selected_idx
-                    if items and selected_idx >= scroll_offset + max_rows:
-                        scroll_offset = selected_idx - max_rows + 1
-
-                    layout['header'].update(render_header(len(pids), active_view, ''))
-                    layout['main'].update(main_renderable)
+                    layout['header'].update(render_header(
+                        len(pids), active_view,
+                        'VERBOSE' if verbose_mode else '',
+                    ))
+                    layout['table'].update(tabla_renderable)
+                    layout['detail'].update(detail_renderable)
                     iv_key = VIEW_INTERVAL.get(active_view, 'resumen')
                     iv_actual = intervalos[iv_key].value if iv_key in intervalos else 2.0
                     layout['footer'].update(render_footer(
                         filter_cmd, sort_mode, iv_actual,
                         filter_mode, filter_text,
                         filter_user_mode, filter_user_text,
-                        filter_uid,
+                        filter_uid, verbose_mode,
                     ))
                     live.refresh()
 

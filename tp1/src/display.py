@@ -14,7 +14,8 @@ def crear_layout():
     layout = Layout()
     layout.split_column(
         Layout(name='header', size=3),
-        Layout(name='main'),
+        Layout(name='table', ratio=3),
+        Layout(name='detail', ratio=2),
         Layout(name='footer', size=3),
     )
     return layout
@@ -28,9 +29,9 @@ def render_header(pids_count, active_view, debug_tecla=''):
     return Panel(texto, style='bold cyan')
 
 
-def render_vista_resumen(resumen, memoria, selected_idx, sort_mode,
-                         filter_cmd, scroll_offset, max_rows, filter_uid=''):
-    table = Table(show_header=True, header_style='bold magenta')
+def render_tabla_procesos(resumen, memoria, selected_idx, sort_mode,
+                          filter_cmd, scroll_offset, max_rows, filter_uid=''):
+    table = Table(show_header=True, header_style='bold magenta', show_edge=False)
     table.add_column('PID', justify='right', width=7)
     table.add_column('NOMBRE', width=16)
     table.add_column('EST', width=3)
@@ -38,7 +39,7 @@ def render_vista_resumen(resumen, memoria, selected_idx, sort_mode,
     table.add_column('RSS', justify='right', width=8)
     table.add_column('THR', justify='right', width=3)
     table.add_column('PPID', justify='right', width=7)
-    table.add_column('UID', justify='right', width=5)
+    table.add_column('USER', width=10)
 
     items = []
     for pid, d in resumen.items():
@@ -49,10 +50,10 @@ def render_vista_resumen(resumen, memoria, selected_idx, sort_mode,
         cpu = d.get('cpu_percent', 0.0)
         thr = d.get('threads', 0)
         ppid = d.get('ppid', 0)
-        uid = d.get('uid', '?')
+        user = d.get('group', d.get('uid', '?'))
         m = memoria.get(pid, {})
         rss = m.get('rss', '?')
-        items.append((pid, nombre, estado, cpu, rss, thr, ppid, uid))
+        items.append((pid, nombre, estado, cpu, rss, thr, ppid, user))
 
     if filter_cmd:
         items = [i for i in items if filter_cmd.lower() in i[1].lower()]
@@ -73,12 +74,67 @@ def render_vista_resumen(resumen, memoria, selected_idx, sort_mode,
 
     end = min(scroll_offset + max_rows, len(items))
     for i in range(scroll_offset, end):
-        pid, nombre, estado, cpu, rss, thr, ppid, uid = items[i]
+        pid, nombre, estado, cpu, rss, thr, ppid, user = items[i]
         style = 'reverse' if i == selected_idx else ''
         cpu_str = f'{cpu:.1f}'
         rss_str = f'{rss:.0f}' if isinstance(rss, (int, float)) else str(rss)
         table.add_row(str(pid), nombre, estado, cpu_str, rss_str,
-                      str(thr), str(ppid), str(uid), style=style)
+                      str(thr), str(ppid), str(user), style=style)
+
+    return table, items
+
+
+def render_vista_resumen(resumen, memoria, selected_idx, sort_mode,
+                         filter_cmd, scroll_offset, max_rows, filter_uid=''):
+    table = Table(show_header=True, header_style='bold magenta')
+    table.add_column('PID', justify='right', width=7)
+    table.add_column('NOMBRE', width=16)
+    table.add_column('EST', width=3)
+    table.add_column('CPU%', justify='right', width=5)
+    table.add_column('RSS', justify='right', width=8)
+    table.add_column('THR', justify='right', width=3)
+    table.add_column('PPID', justify='right', width=7)
+    table.add_column('USER', width=10)
+
+    items = []
+    for pid, d in resumen.items():
+        if filter_uid and str(d.get('uid', '')) != filter_uid:
+            continue
+        nombre = str(d.get('name', '?'))[:16]
+        estado = d.get('state', '?')[:3]
+        cpu = d.get('cpu_percent', 0.0)
+        thr = d.get('threads', 0)
+        ppid = d.get('ppid', 0)
+        user = d.get('group', d.get('uid', '?'))
+        m = memoria.get(pid, {})
+        rss = m.get('rss', '?')
+        items.append((pid, nombre, estado, cpu, rss, thr, ppid, user))
+
+    if filter_cmd:
+        items = [i for i in items if filter_cmd.lower() in i[1].lower()]
+
+    if sort_mode == 0:
+        items.sort(key=lambda x: x[3], reverse=True)
+    elif sort_mode == 1:
+        items.sort(key=lambda x: x[4] if isinstance(x[4], (int, float)) else 0, reverse=True)
+    else:
+        items.sort(key=lambda x: x[0])
+
+    if not items:
+        table.add_row('(sin datos)', '', '', '', '', '', '', '')
+        return table, items
+
+    if max_rows < 1:
+        max_rows = 1
+
+    end = min(scroll_offset + max_rows, len(items))
+    for i in range(scroll_offset, end):
+        pid, nombre, estado, cpu, rss, thr, ppid, user = items[i]
+        style = 'reverse' if i == selected_idx else ''
+        cpu_str = f'{cpu:.1f}'
+        rss_str = f'{rss:.0f}' if isinstance(rss, (int, float)) else str(rss)
+        table.add_row(str(pid), nombre, estado, cpu_str, rss_str,
+                      str(thr), str(ppid), str(user), style=style)
 
     return table, items
 
@@ -180,7 +236,9 @@ def render_vista_threads(resumen, threads, selected_idx, scroll_offset, max_rows
     table.add_column('PID', justify='right', width=7)
     table.add_column('NOMBRE', width=20)
     table.add_column('THR', justify='right', width=5)
-    table.add_column('DETALLE', width=40)
+    table.add_column('CTX-V', justify='right', width=6)
+    table.add_column('CTX-I', justify='right', width=6)
+    table.add_column('DETALLE', width=30)
 
     items = []
     for pid, tids in threads.items():
@@ -190,16 +248,20 @@ def render_vista_threads(resumen, threads, selected_idx, scroll_offset, max_rows
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:20]
         estados = {}
+        total_vol = 0
+        total_invol = 0
         for t in tids:
             s = t.get('state', '?')
             estados[s] = estados.get(s, 0) + 1
+            total_vol += t.get('ctxt_vol', 0)
+            total_invol += t.get('ctxt_invol', 0)
         detalle = ' '.join(f'{s}:{c}' for s, c in sorted(estados.items()))
-        items.append((pid, nombre, len(tids), detalle))
+        items.append((pid, nombre, len(tids), total_vol, total_invol, detalle))
 
     items.sort(key=lambda x: x[2], reverse=True)
 
     if not items:
-        table.add_row('(sin datos)', '', '', '')
+        table.add_row('(sin datos)', '', '', '', '', '')
         return table, items
 
     if max_rows < 1:
@@ -207,9 +269,10 @@ def render_vista_threads(resumen, threads, selected_idx, scroll_offset, max_rows
 
     end = min(scroll_offset + max_rows, len(items))
     for i in range(scroll_offset, end):
-        pid, nombre, count, detalle = items[i]
+        pid, nombre, count, vol, invol, detalle = items[i]
         style = 'reverse' if i == selected_idx else ''
-        table.add_row(str(pid), nombre, str(count), detalle[:40], style=style)
+        table.add_row(str(pid), nombre, str(count), str(vol), str(invol),
+                      detalle[:30], style=style)
 
     return table, items
 
@@ -443,6 +506,9 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
     section('Resumen')
     kv('Estado', r.get('state', '?'))
     kv('CPU%', f"{r.get('cpu_percent', 0.0):.1f}")
+    kv('UID', r.get('uid', '?'))
+    kv('GID', f"{r.get('gid', '?')} ({r.get('group', '?')})")
+    kv('PPID', r.get('ppid', '?'))
     kv('Threads', r.get('threads', 0))
     cmd = r.get('cmdline', '')
     kv('Cmdline', cmd[:80] if cmd else '(none)')
@@ -457,7 +523,41 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
     kv('Minor faults', m.get('faults_min', '?'))
     kv('Major faults', m.get('faults_maj', '?'))
     maps_val = m.get('maps')
-    kv('Mapas memoria', len(maps_val) if isinstance(maps_val, list) else 0)
+    if isinstance(maps_val, list) and maps_val:
+        grupos = {}
+        for reg in maps_val:
+            perms = reg.get('perms', '')
+            path = reg.get('path', '')
+            if path == '[heap]':
+                tipo = 'heap'
+            elif path == '[stack]':
+                tipo = 'stack'
+            elif not path:
+                if 'x' in perms:
+                    tipo = 'anon_exec'
+                elif 'w' in perms:
+                    tipo = 'anon_write'
+                else:
+                    tipo = 'anon_read'
+            elif path.startswith('['):
+                tipo = path.strip('[]')
+            else:
+                ext = path.rsplit('.', 1)[-1] if '.' in path else ''
+                if ext in ('so', 'dll'):
+                    tipo = 'shared_lib'
+                else:
+                    tipo = 'mapped_file'
+            tam = (reg.get('fin', 0) - reg.get('inicio', 0)) // 1024
+            if tipo not in grupos:
+                grupos[tipo] = {'count': 0, 'kb': 0}
+            grupos[tipo]['count'] += 1
+            grupos[tipo]['kb'] += tam
+        kv('Mapas totales', len(maps_val))
+        for tipo in sorted(grupos):
+            g = grupos[tipo]
+            kv(f'  {tipo}', f'{g["count"]} regiones, {g["kb"]} KB')
+    else:
+        kv('Mapas memoria', 0)
 
     section('FDs')
     if fds_list:
@@ -514,7 +614,7 @@ NOMBRES_ORDEN = {0: 'CPU', 1: 'RSS', 2: 'PID'}
 
 def render_footer(filter_cmd='', sort_mode=0, intervalo=2.0, filter_mode=False,
                   filter_text='', filter_user_mode=False, filter_user_text='',
-                  filter_uid=''):
+                  filter_uid='', verbose_mode=False):
     text = Text()
 
     if filter_mode:
@@ -534,6 +634,8 @@ def render_footer(filter_cmd='', sort_mode=0, intervalo=2.0, filter_mode=False,
             text.append(f'[{filter_uid}]', style='yellow')
         text.append(f'  c:{NOMBRES_ORDEN.get(sort_mode, "?")}')
         text.append(f'  +/-:{intervalo:.1f}s')
+        if verbose_mode:
+            text.append('  V', style='bold yellow')
         text.append('  h  q')
 
     return Panel(text, style='bold white on blue')

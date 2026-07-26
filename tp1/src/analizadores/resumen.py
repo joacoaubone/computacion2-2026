@@ -31,11 +31,18 @@ def resumen_loop(snapshot, shutdown_event, intervalo):
                 prev[pid] = {'jiffies': total, 'time': now}
 
             nombre = str(status.get('Name', '?'))
+            uid_raw = str(status.get('Uid', '0'))
+            gid_raw = str(status.get('Gid', '0'))
+            uid = uid_raw.split()[0]
+            gid = gid_raw.split()[0]
+            group_name = procfs.resolver_gid(gid)
             datos[pid] = {
                 'name': nombre,
                 'state': stat.get('state', '?') if stat else '?',
                 'ppid': stat.get('ppid', 0) if stat else 0,
-                'uid': str(status.get('Uid', '0')).split()[0],
+                'uid': uid,
+                'gid': gid,
+                'group': group_name,
                 'threads': stat.get('num_threads', 0) if stat else 0,
                 'cpu_percent': round(cpu, 1),
                 'cmdline': cmdline if cmdline else [],

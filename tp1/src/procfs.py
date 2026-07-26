@@ -247,6 +247,20 @@ def leer_thread_stat(pid, tid):
         return None
 
 
+def resolver_gid(gid):
+    """Resuelve un GID numérico a nombre de grupo leyendo /etc/group."""
+    try:
+        gid_str = str(int(gid))
+        with open('/etc/group') as f:
+            for line in f:
+                parts = line.strip().split(':')
+                if len(parts) >= 3 and parts[2] == gid_str:
+                    return parts[0]
+    except (ValueError, FileNotFoundError, PermissionError):
+        pass
+    return str(gid)
+
+
 def leer_maps(pid):
     """ Devuelve una lista de diccionarios con la información de las regiones de memoria del proceso obtenida del archivo /proc/[pid]/maps. """
     try:
