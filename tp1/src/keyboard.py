@@ -2,7 +2,6 @@ import sys
 import os
 import select
 import termios
-import tty
 
 
 _old_settings = None
@@ -14,7 +13,12 @@ def entrar_modo_raw():
     try:
         _fd = sys.stdin.fileno()
         _old_settings = termios.tcgetattr(_fd)
-        tty.setraw(_fd)
+        attrs = termios.tcgetattr(_fd)
+        attrs[0] &= ~(termios.ICRNL | termios.INLCR | termios.IGNCR)
+        attrs[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG)
+        attrs[6][termios.VMIN] = 1
+        attrs[6][termios.VTIME] = 0
+        termios.tcsetattr(_fd, termios.TCSANOW, attrs)
     except (termios.error, OSError):
         pass
 

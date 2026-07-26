@@ -45,12 +45,15 @@ def sistema_loop(snapshot, shutdown_event, intervalo):
             st = d.get('state', '?')
             por_estado[st] = por_estado.get(st, 0) + 1
 
+        threads_totales = sum(d.get('threads', 0) for d in resumen.values())
+
         datos = {
             'cpu': cpu_delta,
             'meminfo': procfs.leer_meminfo(),
             'loadavg': procfs.leer_loadavg(),
             'uptime': procfs.leer_uptime(),
             'stat_sys': stat_sys,
+            'threads_totales': threads_totales,
             'top_cpu': [
                 {'pid': p, 'name': d.get('name', '?'), 'cpu': d.get('cpu_percent', 0)}
                 for p, d in top_cpu

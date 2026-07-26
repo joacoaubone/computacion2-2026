@@ -186,12 +186,65 @@ def listar_threads(pid):
 
 def leer_thread_status(pid, tid):
     """ Devuelve un diccionario con la información del hilo obtenida del archivo /proc/[pid]/task/[tid]/status. """
-    return leer_status(tid) if tid != pid else leer_status(pid)
+    if tid == pid:
+        return leer_status(pid)
+    try:
+        datos = {}
+        with open(f'/proc/{pid}/task/{tid}/status') as f:
+            for line in f:
+                if ':' not in line:
+                    continue
+                key, _, value = line.partition(':')
+                key = key.strip()
+                value = value.strip()
+                if value.isdigit():
+                    value = int(value)
+                datos[key] = value
+        return datos
+    except (FileNotFoundError, PermissionError):
+        return None
 
 
 def leer_thread_stat(pid, tid):
-    """ Devuelve un diccionario con la información del hilo obtenida del archivo /proc/[pid]/task/[tid]/stat. """   
-    return leer_stat(tid) if tid != pid else leer_stat(pid)
+    """ Devuelve un diccionario con la información del hilo obtenida del archivo /proc/[pid]/task/[tid]/stat. """
+    if tid == pid:
+        return leer_stat(pid)
+    try:
+        with open(f'/proc/{pid}/task/{tid}/stat') as f:
+            line = f.readline().strip()
+
+        pid_end = line.find('(')
+        _pid = int(line[:pid_end].strip())
+
+        comm_start = pid_end + 1
+        comm_end = line.rfind(')')
+        comm = line[comm_start:comm_end]
+
+        rest = line[comm_end + 2:].split()
+        campos = ['pid', 'comm', 'state', 'ppid', 'pgid',
+                  'sid', 'tty_nr', 'tty_pgrp', 'flags', 'min_flt',
+                  'cmin_flt', 'maj_flt', 'cmaj_flt', 'utime', 'stime',
+                  'cutime', 'cstime', 'priority', 'nice', 'num_threads',
+                  'it_real_value', 'start_time', 'vsize', 'rss', 'rsslim',
+                  'start_code', 'end_code', 'start_stack', 'kstk_esp', 'kstk_eip',
+                  'signal', 'blocked', 'sigignore', 'sigcatch', 'wchan',
+                  'nswap', 'cnswap', 'exit_signal', 'processor', 'rt_priority',
+                  'policy', 'delayacct_blkio_ticks', 'guest_time', 'cguest_time',
+                  'start_data', 'end_data', 'start_brk', 'arg_start', 'arg_end',
+                  'env_start', 'env_end', 'exit_code']
+
+        resultado = {'pid': _pid, 'comm': comm}
+        for i, campo in enumerate(campos[2:], start=2):
+            idx = i - 2
+            if idx < len(rest):
+                v = rest[idx]
+                try:
+                    resultado[campo] = int(v)
+                except ValueError:
+                    resultado[campo] = v
+        return resultado
+    except (FileNotFoundError, PermissionError):
+        return None
 
 
 def leer_maps(pid):

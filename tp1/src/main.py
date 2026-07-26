@@ -37,6 +37,11 @@ VIEW_INTERVAL = {
     5: 'senales', 6: 'scheduling', 7: 'sistema',
 }
 
+VIEW_MIN = {
+    'resumen': 0.5, 'memoria': 1.0, 'fds': 2.0, 'threads': 0.5,
+    'senales': 5.0, 'scheduling': 5.0, 'sistema': 1.0,
+}
+
 
 def cargar_config(intervalos):
     try:
@@ -189,31 +194,36 @@ def main():
                     elif active_view == 1:
                         main_renderable, items = render_vista_resumen(
                             resumen, memoria, selected_idx, sort_mode,
-                            filter_cmd, scroll_offset, max_rows,
+                            filter_cmd, scroll_offset, max_rows, filter_uid,
                         )
                     elif active_view == 2:
                         main_renderable, items = render_vista_memoria(
                             resumen, memoria, selected_idx, scroll_offset, max_rows,
+                            filter_uid,
                         )
                     elif active_view == 3:
                         main_renderable, items = render_vista_fds(
                             resumen, snapshot.get('fds', {}),
                             selected_idx, scroll_offset, max_rows,
+                            filter_uid,
                         )
                     elif active_view == 4:
                         main_renderable, items = render_vista_threads(
                             resumen, snapshot.get('threads', {}),
                             selected_idx, scroll_offset, max_rows,
+                            filter_uid,
                         )
                     elif active_view == 5:
                         main_renderable, items = render_vista_senales(
                             resumen, snapshot.get('senales', {}),
                             selected_idx, scroll_offset, max_rows,
+                            filter_uid,
                         )
                     else:
                         main_renderable, items = render_vista_scheduling(
                             resumen, snapshot.get('scheduling', {}),
                             selected_idx, scroll_offset, max_rows,
+                            filter_uid,
                         )
 
                     if items:
@@ -225,12 +235,6 @@ def main():
                         scroll_offset = selected_idx
                     if items and selected_idx >= scroll_offset + max_rows:
                         scroll_offset = selected_idx - max_rows + 1
-
-                    if active_view == 1:
-                        main_renderable, items = render_vista_resumen(
-                            resumen, memoria, selected_idx, sort_mode,
-                            filter_cmd, scroll_offset, max_rows, filter_uid,
-                        )
 
                     layout['header'].update(render_header(len(pids), active_view, ''))
                     layout['main'].update(main_renderable)
@@ -341,7 +345,8 @@ def main():
                     elif tecla == '-':
                         iv_key = VIEW_INTERVAL.get(active_view)
                         if iv_key and iv_key in intervalos:
-                            intervalos[iv_key].value = max(intervalos[iv_key].value - 0.5, 0.5)
+                            min_iv = VIEW_MIN.get(iv_key, 0.5)
+                            intervalos[iv_key].value = max(intervalos[iv_key].value - 0.5, min_iv)
                     elif tecla in ('h', '?'):
                         ayuda_mode = True
                     elif tecla == 'KEY_CTRLC':

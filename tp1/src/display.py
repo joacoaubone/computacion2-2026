@@ -88,11 +88,14 @@ def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows
     table = Table(show_header=True, header_style='bold magenta')
     table.add_column('PID', justify='right', width=7)
     table.add_column('NOMBRE', width=16)
-    table.add_column('RSS(KB)', justify='right', width=9)
-    table.add_column('VSIZE(KB)', justify='right', width=10)
-    table.add_column('HWM(KB)', justify='right', width=8)
-    table.add_column('SWAP(KB)', justify='right', width=8)
-    table.add_column('MAPS', justify='right', width=5)
+    table.add_column('RSS', justify='right', width=8)
+    table.add_column('VSIZE', justify='right', width=8)
+    table.add_column('DATA', justify='right', width=8)
+    table.add_column('STK', justify='right', width=7)
+    table.add_column('EXE', justify='right', width=7)
+    table.add_column('LIB', justify='right', width=7)
+    table.add_column('HWM', justify='right', width=7)
+    table.add_column('SWAP', justify='right', width=7)
 
     items = []
     for pid, d in memoria.items():
@@ -101,16 +104,18 @@ def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         rss = d.get('rss', 0)
         vsize = d.get('vsize', 0)
+        data = d.get('data', 0)
+        stack = d.get('stack', 0)
+        exe = d.get('exe', 0)
+        lib = d.get('lib', 0)
         hwm = d.get('hwm', 0)
         swap = d.get('swap', 0)
-        maps_val = d.get('maps')
-        maps_count = len(maps_val) if isinstance(maps_val, list) else 0
-        items.append((pid, nombre, rss, vsize, hwm, swap, maps_count))
+        items.append((pid, nombre, rss, vsize, data, stack, exe, lib, hwm, swap))
 
     items.sort(key=lambda x: x[2] if isinstance(x[2], (int, float)) else 0, reverse=True)
 
     if not items:
-        table.add_row('(sin datos)', '', '', '', '', '', '')
+        table.add_row('(sin datos)', '', '', '', '', '', '', '', '', '')
         return table, items
 
     if max_rows < 1:
@@ -118,14 +123,13 @@ def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows
 
     end = min(scroll_offset + max_rows, len(items))
     for i in range(scroll_offset, end):
-        pid, nombre, rss, vsize, hwm, swap, maps_count = items[i]
+        pid, nombre, rss, vsize, data, stack, exe, lib, hwm, swap = items[i]
         style = 'reverse' if i == selected_idx else ''
-        rss_str = f'{rss:.0f}' if isinstance(rss, (int, float)) else str(rss)
-        vsize_str = f'{vsize:.0f}' if isinstance(vsize, (int, float)) else str(vsize)
-        hwm_str = f'{hwm:.0f}' if isinstance(hwm, (int, float)) else str(hwm)
-        swap_str = f'{swap:.0f}' if isinstance(swap, (int, float)) else str(swap)
-        table.add_row(str(pid), nombre, rss_str, vsize_str, hwm_str, swap_str,
-                      str(maps_count), style=style)
+        def fmt(v):
+            return f'{v:.0f}' if isinstance(v, (int, float)) else str(v)
+        table.add_row(str(pid), nombre, fmt(rss), fmt(vsize), fmt(data),
+                      fmt(stack), fmt(exe), fmt(lib), fmt(hwm), fmt(swap),
+                      style=style)
 
     return table, items
 
@@ -219,6 +223,7 @@ def render_vista_senales(resumen, senales, selected_idx, scroll_offset, max_rows
     table.add_column('Ign', width=12)
     table.add_column('Cgt', width=12)
     table.add_column('Pnd', width=12)
+    table.add_column('ShdPnd', width=12)
 
     items = []
     for pid, d in senales.items():
@@ -231,12 +236,13 @@ def render_vista_senales(resumen, senales, selected_idx, scroll_offset, max_rows
         ign = ','.join(d.get('SigIgn', []))[:12]
         cgt = ','.join(d.get('SigCgt', []))[:12]
         pnd = ','.join(d.get('SigPnd', []))[:12]
-        items.append((pid, nombre, blk, ign, cgt, pnd))
+        shdpnd = ','.join(d.get('ShdPnd', []))[:12]
+        items.append((pid, nombre, blk, ign, cgt, pnd, shdpnd))
 
     items.sort(key=lambda x: x[0])
 
     if not items:
-        table.add_row('(sin datos)', '', '', '', '', '')
+        table.add_row('(sin datos)', '', '', '', '', '', '')
         return table, items
 
     if max_rows < 1:
@@ -244,9 +250,9 @@ def render_vista_senales(resumen, senales, selected_idx, scroll_offset, max_rows
 
     end = min(scroll_offset + max_rows, len(items))
     for i in range(scroll_offset, end):
-        pid, nombre, blk, ign, cgt, pnd = items[i]
+        pid, nombre, blk, ign, cgt, pnd, shdpnd = items[i]
         style = 'reverse' if i == selected_idx else ''
-        table.add_row(str(pid), nombre, blk, ign, cgt, pnd, style=style)
+        table.add_row(str(pid), nombre, blk, ign, cgt, pnd, shdpnd, style=style)
 
     return table, items
 
@@ -258,8 +264,10 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
     table.add_column('NOMBRE', width=16)
     table.add_column('NI', justify='right', width=4)
     table.add_column('PRI', justify='right', width=4)
+    table.add_column('RT', justify='right', width=4)
     table.add_column('POLICY', width=6)
-    table.add_column('AFFINITY', width=8)
+    table.add_column('SID', justify='right', width=7)
+    table.add_column('PGID', justify='right', width=7)
     table.add_column('CTX-V', justify='right', width=6)
     table.add_column('CTX-I', justify='right', width=6)
 
@@ -272,16 +280,18 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         nice = d.get('nice', '?')
         pri = d.get('priority', '?')
+        rt = d.get('rt_priority', 0)
         policy = str(d.get('policy', '?'))[:6]
-        affinity = str(d.get('affinity', '?'))[:8]
-        nvcsw = d.get('nvcsw', '?')
-        nivcsw = d.get('nivcsw', '?')
-        items.append((pid, nombre, nice, pri, policy, affinity, nvcsw, nivcsw))
+        sid = d.get('sessid', '?')
+        pgid = d.get('pgid', '?')
+        ctxt_vol = d.get('ctxt_vol', '?')
+        ctxt_invol = d.get('ctxt_invol', '?')
+        items.append((pid, nombre, nice, pri, rt, policy, sid, pgid, ctxt_vol, ctxt_invol))
 
     items.sort(key=lambda x: x[0])
 
     if not items:
-        table.add_row('(sin datos)', '', '', '', '', '', '', '')
+        table.add_row('(sin datos)', '', '', '', '', '', '', '', '', '')
         return table, items
 
     if max_rows < 1:
@@ -289,10 +299,10 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
 
     end = min(scroll_offset + max_rows, len(items))
     for i in range(scroll_offset, end):
-        pid, nombre, nice, pri, policy, affinity, nvcsw, nivcsw = items[i]
+        pid, nombre, nice, pri, rt, policy, sid, pgid, ctxt_vol, ctxt_invol = items[i]
         style = 'reverse' if i == selected_idx else ''
-        table.add_row(str(pid), nombre, str(nice), str(pri), policy, affinity,
-                      str(nvcsw), str(nivcsw), style=style)
+        table.add_row(str(pid), nombre, str(nice), str(pri), str(rt), policy,
+                      str(sid), str(pgid), str(ctxt_vol), str(ctxt_invol), style=style)
 
     return table, items
 
@@ -338,9 +348,18 @@ def render_vista_sistema(sistema):
         total = mem.get('MemTotal', 0)
         free = mem.get('MemFree', 0)
         avail = mem.get('MemAvailable', 0)
+        buffers = mem.get('Buffers', 0)
+        cached = mem.get('Cached', 0)
+        swap_total = mem.get('SwapTotal', 0)
+        swap_free = mem.get('SwapFree', 0)
         kv('Total', f'{total} KB' if total else '?')
         kv('Libre', f'{free} KB' if free else '?')
         kv('Disponible', f'{avail} KB' if avail else '?')
+        kv('Buffers', f'{buffers} KB' if buffers else '?')
+        kv('Cached', f'{cached} KB' if cached else '?')
+        if swap_total:
+            kv('Swap Total', f'{swap_total} KB')
+            kv('Swap Libre', f'{swap_free} KB')
     else:
         kv('Memoria', '(esperando...)')
 
@@ -350,9 +369,18 @@ def render_vista_sistema(sistema):
         section('Uptime')
         kv('Uptime', f'{uptime_val:.0f} segundos ({uptime_val / 3600:.1f} horas)')
 
+    stat_sys = sistema.get('stat_sys', {})
+    btime = stat_sys.get('btime') if isinstance(stat_sys, dict) else None
+    if btime:
+        from datetime import datetime
+        boot_dt = datetime.fromtimestamp(btime)
+        kv('Boot Time', boot_dt.strftime('%Y-%m-%d %H:%M:%S'))
+
     section('Procesos')
     total = sistema.get('total_proc', 0)
     kv('Total', total)
+    threads = sistema.get('threads_totales', 0)
+    kv('Threads totales', threads)
     por_estado = sistema.get('por_estado', {})
     if por_estado:
         for estado, cant in sorted(por_estado.items()):
@@ -422,8 +450,12 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
     section('Memoria')
     kv('RSS (KB)', f"{m.get('rss', '?'):.0f}" if isinstance(m.get('rss'), (int, float)) else str(m.get('rss', '?')))
     kv('VSIZE (KB)', f"{m.get('vsize', '?'):.0f}" if isinstance(m.get('vsize'), (int, float)) else str(m.get('vsize', '?')))
-    kv('Minor faults', m.get('minflt', '?'))
-    kv('Major faults', m.get('majflt', '?'))
+    kv('VmData (KB)', f"{m.get('data', '?'):.0f}" if isinstance(m.get('data'), (int, float)) else str(m.get('data', '?')))
+    kv('VmStk (KB)', f"{m.get('stack', '?'):.0f}" if isinstance(m.get('stack'), (int, float)) else str(m.get('stack', '?')))
+    kv('VmExe (KB)', f"{m.get('exe', '?'):.0f}" if isinstance(m.get('exe'), (int, float)) else str(m.get('exe', '?')))
+    kv('VmLib (KB)', f"{m.get('lib', '?'):.0f}" if isinstance(m.get('lib'), (int, float)) else str(m.get('lib', '?')))
+    kv('Minor faults', m.get('faults_min', '?'))
+    kv('Major faults', m.get('faults_maj', '?'))
     maps_val = m.get('maps')
     kv('Mapas memoria', len(maps_val) if isinstance(maps_val, list) else 0)
 
@@ -462,10 +494,13 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
     section('Scheduling')
     kv('Nice', sc.get('nice', '?'))
     kv('Priority', sc.get('priority', '?'))
+    kv('RT Priority', sc.get('rt_priority', '?'))
     kv('Policy', sc.get('policy', '?'))
+    kv('SID', sc.get('sessid', '?'))
+    kv('PGID', sc.get('pgid', '?'))
     kv('Affinity', sc.get('affinity', '?'))
-    kv('Vol ctx switches', sc.get('nvcsw', '?'))
-    kv('Invol ctx switches', sc.get('nivcsw', '?'))
+    kv('Vol ctx switches', sc.get('ctxt_vol', '?'))
+    kv('Invol ctx switches', sc.get('ctxt_invol', '?'))
 
     return Panel(
         text,
