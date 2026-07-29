@@ -1,5 +1,8 @@
 import os
 
+HEX_CAMPOS = {'SigBlk', 'SigIgn', 'SigCgt', 'SigPnd', 'ShdPnd',
+              'CapInh', 'CapPrm', 'CapEff', 'CapBnd', 'CapAmb'}
+
 
 def clk_tck(): 
     """ Devuelve la cantidad de ticks por segundo del sistema, que es necesaria para convertir los tiempos de CPU en segundos. """
@@ -26,7 +29,7 @@ def leer_status(pid):
                 key, _, value = line.partition(':')
                 key = key.strip()
                 value = value.strip()
-                if value.isdigit():
+                if value.isdigit() and key not in HEX_CAMPOS:
                     value = int(value)
                 datos[key] = value
             return datos
@@ -197,7 +200,7 @@ def leer_thread_status(pid, tid):
                 key, _, value = line.partition(':')
                 key = key.strip()
                 value = value.strip()
-                if value.isdigit():
+                if value.isdigit() and key not in HEX_CAMPOS:
                     value = int(value)
                 datos[key] = value
         return datos
