@@ -84,59 +84,11 @@ def render_tabla_procesos(resumen, memoria, selected_idx, sort_mode,
     return table, items
 
 
-def render_vista_resumen(resumen, memoria, selected_idx, sort_mode,
-                         filter_cmd, scroll_offset, max_rows, filter_uid=''):
-    table = Table(show_header=True, header_style='bold magenta')
-    table.add_column('PID', justify='right', width=7)
-    table.add_column('NOMBRE', width=16)
-    table.add_column('EST', width=3)
-    table.add_column('CPU%', justify='right', width=5)
-    table.add_column('RSS', justify='right', width=8)
-    table.add_column('THR', justify='right', width=3)
-    table.add_column('PPID', justify='right', width=7)
-    table.add_column('USER', width=10)
-
-    items = []
-    for pid, d in resumen.items():
-        if filter_uid and str(d.get('uid', '')) != filter_uid:
-            continue
-        nombre = str(d.get('name', '?'))[:16]
-        estado = d.get('state', '?')[:3]
-        cpu = d.get('cpu_percent', 0.0)
-        thr = d.get('threads', 0)
-        ppid = d.get('ppid', 0)
-        user = d.get('group', d.get('uid', '?'))
-        m = memoria.get(pid, {})
-        rss = m.get('rss', '?')
-        items.append((pid, nombre, estado, cpu, rss, thr, ppid, user))
-
-    if filter_cmd:
-        items = [i for i in items if filter_cmd.lower() in i[1].lower()]
-
-    if sort_mode == 0:
-        items.sort(key=lambda x: x[3], reverse=True)
-    elif sort_mode == 1:
-        items.sort(key=lambda x: x[4] if isinstance(x[4], (int, float)) else 0, reverse=True)
-    else:
-        items.sort(key=lambda x: x[0])
-
-    if not items:
-        table.add_row('(sin datos)', '', '', '', '', '', '', '')
-        return table, items
-
-    if max_rows < 1:
-        max_rows = 1
-
-    end = min(scroll_offset + max_rows, len(items))
-    for i in range(scroll_offset, end):
-        pid, nombre, estado, cpu, rss, thr, ppid, user = items[i]
-        style = 'reverse' if i == selected_idx else ''
-        cpu_str = f'{cpu:.1f}'
-        rss_str = f'{rss:.0f}' if isinstance(rss, (int, float)) else str(rss)
-        table.add_row(str(pid), nombre, estado, cpu_str, rss_str,
-                      str(thr), str(ppid), str(user), style=style)
-
-    return table, items
+def render_hint():
+    text = Text()
+    text.append('\n\n')
+    text.append('  Enter → Detalle del proceso seleccionado', style='dim')
+    return Panel(text, title='[bold]Detalle[/]', border_style='blue')
 
 
 def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows,

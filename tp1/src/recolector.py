@@ -1,7 +1,5 @@
 import time
-
 import procfs
-
 
 def recolector_loop(snapshot, shutdown_event, intervalo):
     while not shutdown_event.is_set():

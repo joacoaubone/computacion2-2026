@@ -21,7 +21,7 @@ from analizadores.scheduling import scheduling_loop
 from display import (
     crear_layout, render_header,
     render_tabla_procesos,
-    render_vista_resumen, render_vista_memoria,
+    render_hint, render_vista_memoria,
     render_vista_fds, render_vista_threads,
     render_vista_senales, render_vista_scheduling,
     render_vista_sistema, render_detalle,
@@ -150,21 +150,58 @@ def main():
                     resumen = snapshot.get('resumen', {})
                     memoria = snapshot.get('memoria', {})
 
-                    tabla_renderable, items = render_tabla_procesos(
-                        resumen, memoria, selected_idx, sort_mode,
-                        filter_cmd, scroll_offset, max_rows, filter_uid,
-                    )
+                    # === TABLA SUPERIOR: cambia según vista activa ===
+                    if active_view == 7:
+                        tabla_renderable = render_vista_sistema(
+                            snapshot.get('sistema', {}),
+                        )
+                        items = []
+                    elif active_view == 1:
+                        tabla_renderable, items = render_tabla_procesos(
+                            resumen, memoria, selected_idx, sort_mode,
+                            filter_cmd, scroll_offset, max_rows, filter_uid,
+                        )
+                    elif active_view == 2:
+                        tabla_renderable, items = render_vista_memoria(
+                            resumen, memoria, selected_idx, scroll_offset, max_rows,
+                            filter_uid,
+                        )
+                    elif active_view == 3:
+                        tabla_renderable, items = render_vista_fds(
+                            resumen, snapshot.get('fds', {}),
+                            selected_idx, scroll_offset, max_rows,
+                            filter_uid,
+                        )
+                    elif active_view == 4:
+                        tabla_renderable, items = render_vista_threads(
+                            resumen, snapshot.get('threads', {}),
+                            selected_idx, scroll_offset, max_rows,
+                            filter_uid,
+                        )
+                    elif active_view == 5:
+                        tabla_renderable, items = render_vista_senales(
+                            resumen, snapshot.get('senales', {}),
+                            selected_idx, scroll_offset, max_rows,
+                            filter_uid,
+                        )
+                    else:
+                        tabla_renderable, items = render_vista_scheduling(
+                            resumen, snapshot.get('scheduling', {}),
+                            selected_idx, scroll_offset, max_rows,
+                            filter_uid,
+                        )
 
+                    # === SELECCION ===
                     if items:
                         selected_idx = min(selected_idx, len(items) - 1)
                     else:
                         selected_idx = 0
-
                     if selected_idx < scroll_offset:
                         scroll_offset = selected_idx
                     if items and selected_idx >= scroll_offset + max_rows:
                         scroll_offset = selected_idx - max_rows + 1
 
+                    # === PANEL INFERIOR ===
                     if ayuda_mode:
                         layout['header'].update(render_header(
                             len(pids), active_view,
@@ -205,44 +242,8 @@ def main():
                             detalle_pid = None
                         continue
 
-                    if active_view == 7:
-                        detail_renderable = render_vista_sistema(
-                            snapshot.get('sistema', {}),
-                        )
-                    elif active_view == 1:
-                        detail_renderable, _ = render_vista_resumen(
-                            resumen, memoria, selected_idx, sort_mode,
-                            filter_cmd, scroll_offset, max_rows, filter_uid,
-                        )
-                    elif active_view == 2:
-                        detail_renderable, _ = render_vista_memoria(
-                            resumen, memoria, selected_idx, scroll_offset, max_rows,
-                            filter_uid,
-                        )
-                    elif active_view == 3:
-                        detail_renderable, _ = render_vista_fds(
-                            resumen, snapshot.get('fds', {}),
-                            selected_idx, scroll_offset, max_rows,
-                            filter_uid,
-                        )
-                    elif active_view == 4:
-                        detail_renderable, _ = render_vista_threads(
-                            resumen, snapshot.get('threads', {}),
-                            selected_idx, scroll_offset, max_rows,
-                            filter_uid,
-                        )
-                    elif active_view == 5:
-                        detail_renderable, _ = render_vista_senales(
-                            resumen, snapshot.get('senales', {}),
-                            selected_idx, scroll_offset, max_rows,
-                            filter_uid,
-                        )
-                    else:
-                        detail_renderable, _ = render_vista_scheduling(
-                            resumen, snapshot.get('scheduling', {}),
-                            selected_idx, scroll_offset, max_rows,
-                            filter_uid,
-                        )
+                    # === VISTA NORMAL: abajo siempre hint ===
+                    detail_renderable = render_hint()
 
                     layout['header'].update(render_header(
                         len(pids), active_view,
