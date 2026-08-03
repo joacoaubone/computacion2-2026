@@ -55,15 +55,15 @@ def render_tabla_procesos(resumen, memoria, selected_idx, sort_mode,
         rss = m.get('rss', '?')
         items.append((pid, nombre, estado, cpu, rss, thr, ppid, user))
 
-    if filter_cmd:
+    if filter_cmd: # filtro de / 
         items = [i for i in items if filter_cmd.lower() in i[1].lower()]
 
-    if sort_mode == 0:
+    if sort_mode == 0: # ordenar por CPU
         items.sort(key=lambda x: x[3], reverse=True)
-    elif sort_mode == 1:
+    elif sort_mode == 1: # ordenar por RSS
         items.sort(key=lambda x: x[4] if isinstance(x[4], (int, float)) else 0, reverse=True)
-    else:
-        items.sort(key=lambda x: x[0])
+    else: # ordenar por PID
+        items.sort(key=lambda x: x[0]) 
 
     if not items:
         table.add_row('(sin datos)', '', '', '', '', '', '', '')
@@ -90,9 +90,11 @@ def render_hint():
     text.append('  Enter → Detalle del proceso seleccionado', style='dim')
     return Panel(text, title='[bold]Detalle[/]', border_style='blue')
 
+def fmt(v):
+    return f'{v:.0f}' if isinstance(v, (int, float)) else str(v)
 
 def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows,
-                         filter_uid=''):
+                         filter_uid='', filter_cmd=''):
     table = Table(show_header=True, header_style='bold magenta')
     table.add_column('PID', justify='right', width=7)
     table.add_column('NOMBRE', width=16)
@@ -108,6 +110,8 @@ def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows
     items = []
     for pid, d in memoria.items():
         if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+            continue
+        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         rss = d.get('rss', 0)
@@ -133,8 +137,6 @@ def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows
     for i in range(scroll_offset, end):
         pid, nombre, rss, vsize, data, stack, exe, lib, hwm, swap = items[i]
         style = 'reverse' if i == selected_idx else ''
-        def fmt(v):
-            return f'{v:.0f}' if isinstance(v, (int, float)) else str(v)
         table.add_row(str(pid), nombre, fmt(rss), fmt(vsize), fmt(data),
                       fmt(stack), fmt(exe), fmt(lib), fmt(hwm), fmt(swap),
                       style=style)
@@ -143,7 +145,7 @@ def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows
 
 
 def render_vista_fds(resumen, fds, selected_idx, scroll_offset, max_rows,
-                     filter_uid=''):
+                     filter_uid='', filter_cmd=''):
     table = Table(show_header=True, header_style='bold magenta')
     table.add_column('PID', justify='right', width=7)
     table.add_column('NOMBRE', width=16)
@@ -155,6 +157,8 @@ def render_vista_fds(resumen, fds, selected_idx, scroll_offset, max_rows,
         if not isinstance(fds_list, list):
             continue
         if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+            continue
+        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         tipos = {}
@@ -183,7 +187,7 @@ def render_vista_fds(resumen, fds, selected_idx, scroll_offset, max_rows,
 
 
 def render_vista_threads(resumen, threads, selected_idx, scroll_offset, max_rows,
-                         filter_uid=''):
+                         filter_uid='', filter_cmd=''):
     table = Table(show_header=True, header_style='bold magenta')
     table.add_column('PID', justify='right', width=7)
     table.add_column('NOMBRE', width=20)
@@ -197,6 +201,8 @@ def render_vista_threads(resumen, threads, selected_idx, scroll_offset, max_rows
         if not isinstance(tids, list):
             continue
         if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+            continue
+        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:20]
         estados = {}
@@ -230,21 +236,23 @@ def render_vista_threads(resumen, threads, selected_idx, scroll_offset, max_rows
 
 
 def render_vista_senales(resumen, senales, selected_idx, scroll_offset, max_rows,
-                         filter_uid=''):
+                         filter_uid='', filter_cmd=''):
     table = Table(show_header=True, header_style='bold magenta')
     table.add_column('PID', justify='right', width=7)
     table.add_column('NOMBRE', width=16)
-    table.add_column('Blk', width=12)
-    table.add_column('Ign', width=12)
-    table.add_column('Cgt', width=12)
-    table.add_column('Pnd', width=12)
-    table.add_column('ShdPnd', width=12)
+    table.add_column('Blk')
+    table.add_column('Ign')
+    table.add_column('Cgt')
+    table.add_column('Pnd')
+    table.add_column('ShdPnd')
 
     items = []
     for pid, d in senales.items():
         if not isinstance(d, dict):
             continue
         if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+            continue
+        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         blk = ','.join(d.get('SigBlk', []))[:12]
@@ -273,18 +281,20 @@ def render_vista_senales(resumen, senales, selected_idx, scroll_offset, max_rows
 
 
 def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, max_rows,
-                            filter_uid=''):
+                            filter_uid='', filter_cmd=''):
     table = Table(show_header=True, header_style='bold magenta')
-    table.add_column('PID', justify='right', width=7)
-    table.add_column('NOMBRE', width=16)
-    table.add_column('NI', justify='right', width=4)
-    table.add_column('PRI', justify='right', width=4)
-    table.add_column('RT', justify='right', width=4)
-    table.add_column('POLICY', width=6)
-    table.add_column('SID', justify='right', width=7)
-    table.add_column('PGID', justify='right', width=7)
-    table.add_column('CTX-V', justify='right', width=6)
-    table.add_column('CTX-I', justify='right', width=6)
+    table.add_column('PID', justify='right', min_width=6)
+    table.add_column('NOMBRE', min_width=6, max_width=16)
+    table.add_column('NI', justify='right', min_width=3)
+    table.add_column('PRI', justify='right', min_width=3)
+    table.add_column('RT', justify='right', min_width=3)
+    table.add_column('UT', justify='right', min_width=5)
+    table.add_column('ST', justify='right', min_width=5)
+    table.add_column('POLICY', min_width=4, max_width=6)
+    table.add_column('SID', justify='right', min_width=6)
+    table.add_column('PGID', justify='right', min_width=6)
+    table.add_column('CTX-V', justify='right', min_width=5)
+    table.add_column('CTX-I', justify='right', min_width=5)
 
     items = []
     for pid, d in scheduling.items():
@@ -292,21 +302,26 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
             continue
         if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
             continue
+        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
+            continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         nice = d.get('nice', '?')
         pri = d.get('priority', '?')
         rt = d.get('rt_priority', 0)
+        utime = d.get('utime', '?')
+        stime = d.get('stime', '?')
         policy = str(d.get('policy', '?'))[:6]
         sid = d.get('sessid', '?')
         pgid = d.get('pgid', '?')
         ctxt_vol = d.get('ctxt_vol', '?')
         ctxt_invol = d.get('ctxt_invol', '?')
-        items.append((pid, nombre, nice, pri, rt, policy, sid, pgid, ctxt_vol, ctxt_invol))
+        items.append((pid, nombre, nice, pri, rt, utime, stime,
+                      policy, sid, pgid, ctxt_vol, ctxt_invol))
 
     items.sort(key=lambda x: x[0])
 
     if not items:
-        table.add_row('(sin datos)', '', '', '', '', '', '', '', '', '')
+        table.add_row('(sin datos)', '', '', '', '', '', '', '', '', '', '', '')
         return table, items
 
     if max_rows < 1:
@@ -314,10 +329,10 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
 
     end = min(scroll_offset + max_rows, len(items))
     for i in range(scroll_offset, end):
-        pid, nombre, nice, pri, rt, policy, sid, pgid, ctxt_vol, ctxt_invol = items[i]
+        pid, nombre, nice, pri, rt, utime, stime, policy, sid, pgid, ctxt_vol, ctxt_invol = items[i]
         style = 'reverse' if i == selected_idx else ''
-        table.add_row(str(pid), nombre, str(nice), str(pri), str(rt), policy,
-                      str(sid), str(pgid), str(ctxt_vol), str(ctxt_invol), style=style)
+        table.add_row(str(pid), nombre, str(nice), str(pri), str(rt), str(utime), str(stime),
+                      policy, str(sid), str(pgid), str(ctxt_vol), str(ctxt_invol), style=style)
 
     return table, items
 
@@ -426,7 +441,7 @@ def render_vista_sistema(sistema):
     return Panel(text, title='[bold]Sistema[/]', border_style='cyan')
 
 
-def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
+def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling, verbose=False):
     r = resumen.get(pid, {}) if isinstance(resumen.get(pid), dict) else {}
     m = memoria.get(pid, {}) if isinstance(memoria.get(pid), dict) else {}
     fds_list = fds.get(pid, []) if isinstance(fds.get(pid), list) else []
@@ -463,7 +478,7 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
     kv('PPID', r.get('ppid', '?'))
     kv('Threads', r.get('threads', 0))
     cmd = r.get('cmdline', '')
-    kv('Cmdline', cmd[:80] if cmd else '(none)')
+    kv('Cmdline', cmd[:200] if cmd else '(none)')
 
     section('Memoria')
     kv('RSS (KB)', f"{m.get('rss', '?'):.0f}" if isinstance(m.get('rss'), (int, float)) else str(m.get('rss', '?')))
@@ -514,25 +529,27 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
     section('FDs')
     if fds_list:
         kv('Total abiertos', len(fds_list))
-        for fd_info in fds_list[:15]:
+        fd_limit = 40 if verbose else 15
+        for fd_info in fds_list[:fd_limit]:
             num = fd_info.get('fd', '?')
             dest = fd_info.get('destino', '?')
             kv(f'  FD {num}', dest[:50])
-        if len(fds_list) > 15:
-            kv('  ...', f'y {len(fds_list) - 15} más')
+        if len(fds_list) > fd_limit:
+            kv('  ...', f'y {len(fds_list) - fd_limit} más')
     else:
         kv('FDs', '(sin datos)')
 
     section('Threads')
     if tids:
         kv('Total', len(tids))
-        for thr in tids[:20]:
+        thr_limit = 40 if verbose else 20
+        for thr in tids[:thr_limit]:
             tid = thr.get('tid', '?')
             state = thr.get('state', '?')
             cpu = thr.get('cpu_percent', 0.0)
             kv(f'  TID {tid}', f'{state}  CPU: {cpu:.1f}%')
-        if len(tids) > 20:
-            kv('  ...', f'y {len(tids) - 20} más')
+        if len(tids) > thr_limit:
+            kv('  ...', f'y {len(tids) - thr_limit} más')
     else:
         kv('Threads', '(sin datos)')
 
@@ -546,6 +563,8 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling):
     section('Scheduling')
     kv('Nice', sc.get('nice', '?'))
     kv('Priority', sc.get('priority', '?'))
+    kv('Utime', sc.get('utime', '?'))
+    kv('Stime', sc.get('stime', '?'))
     kv('RT Priority', sc.get('rt_priority', '?'))
     kv('Policy', sc.get('policy', '?'))
     kv('SID', sc.get('sessid', '?'))

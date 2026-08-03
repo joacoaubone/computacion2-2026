@@ -26,6 +26,8 @@ def scheduling_loop(snapshot, shutdown_event, intervalo):
                 'policy': POLICIES.get(policy_num, str(policy_num)),
                 'policy_num': policy_num,
                 'rt_priority': stat.get('rt_priority', 0),
+                'utime': stat.get('utime', 0),
+                'stime': stat.get('stime', 0),
                 'affinity': status.get('Cpus_allowed_list', '?'),
                 'ctxt_vol': status.get('voluntary_ctxt_switches', 0),
                 'ctxt_invol': status.get('nonvoluntary_ctxt_switches', 0),

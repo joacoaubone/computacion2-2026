@@ -22,7 +22,7 @@ def decodificar_mascara(hex_str):
         return []
     activas = []
     for bit, nombre in NOMBRES_SENIALES:
-        if mask & (1 << bit):
+        if mask & (1 << bit): # ejemplo bit 3: 1<<3 = 8(2^3) = 0b1000
             activas.append(nombre)
     return activas
 

@@ -4,7 +4,7 @@ run:
 	docker compose up --build
 
 dev:
-	docker compose run --rm -it monitor tail -f /dev/null
+	docker compose run --rm -it --name tp1-test monitor bash
 
 exec:
 	docker compose exec monitor bash

@@ -14,8 +14,8 @@ def entrar_modo_raw():
         _fd = sys.stdin.fileno()
         _old_settings = termios.tcgetattr(_fd)
         attrs = termios.tcgetattr(_fd)
-        attrs[0] &= ~(termios.ICRNL | termios.INLCR | termios.IGNCR)
-        attrs[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG)
+        attrs[0] &= ~(termios.ICRNL | termios.INLCR | termios.IGNCR) # hacer q byte de enter llegue de forma cruda
+        attrs[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG) # desactivar modo canonico, echo y señales
         attrs[6][termios.VMIN] = 1
         attrs[6][termios.VTIME] = 0
         termios.tcsetattr(_fd, termios.TCSANOW, attrs)

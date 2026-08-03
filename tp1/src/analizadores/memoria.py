@@ -3,6 +3,12 @@ import time
 import procfs
 
 
+def v(val):
+    if isinstance(val, str) and val.endswith(' kB'):
+        return int(val[:-3])
+    return val if isinstance(val, (int, float)) else 0
+
+
 def memoria_loop(snapshot, shutdown_event, intervalo):
     while not shutdown_event.is_set():
         pids = snapshot.get('pids', [])
@@ -14,11 +20,6 @@ def memoria_loop(snapshot, shutdown_event, intervalo):
                 continue
             maps = procfs.leer_maps(pid)
             stat = procfs.leer_stat(pid)
-
-            def v(val):
-                if isinstance(val, str) and val.endswith(' kB'):
-                    return int(val[:-3])
-                return val if isinstance(val, (int, float)) else 0
 
             datos[pid] = {
                 'rss': v(status.get('VmRSS', 0)),

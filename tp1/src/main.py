@@ -50,7 +50,8 @@ def cargar_config(intervalos):
             config = json.load(f)
         for nombre, valor in config.get('intervalos', {}).items():
             if nombre in intervalos:
-                intervalos[nombre].value = valor
+                min_iv = VIEW_MIN.get(nombre, 0.5)
+                intervalos[nombre].value = max(valor, min_iv)
     except (FileNotFoundError, json.JSONDecodeError):
         pass
 
@@ -64,6 +65,22 @@ def dump_snapshot(snapshot):
             data[k] = dict(v)
     with open(path, 'w') as f:
         json.dump(data, f, indent=2, default=str)
+
+
+def despachar_señal(senal, intervalos, snapshot):
+    if senal is None:
+        return 'ok'
+    if senal in (signal.SIGINT, signal.SIGTERM):
+        return 'salir'
+    if senal == signal.SIGHUP:
+        cargar_config(intervalos)
+        return 'ok'
+    if senal == signal.SIGUSR1:
+        dump_snapshot(snapshot)
+        return 'ok'
+    if senal == signal.SIGUSR2:
+        return 'verbose'
+    return 'ok'
 
 
 def main():
@@ -142,10 +159,19 @@ def main():
 
         try:
             with Live(layout, refresh_per_second=4, screen=True) as live:
+                items = []
                 while not shutdown_event.is_set():
                     pids = snapshot.get('pids', [])
                     rows = shutil.get_terminal_size().lines
-                    max_rows = max(rows - 11, 3)
+                    region_h = max((rows - 6) * 3 // 5, 3)
+                    overhead = 2 if active_view == 1 else 4
+                    max_rows = max(region_h - overhead, 1)
+
+                    # === SCROLL: la ventana sigue al cursor (items del frame anterior) ===
+                    if selected_idx < scroll_offset:
+                        scroll_offset = selected_idx
+                    if items and selected_idx >= scroll_offset + max_rows:
+                        scroll_offset = selected_idx - max_rows + 1
 
                     resumen = snapshot.get('resumen', {})
                     memoria = snapshot.get('memoria', {})
@@ -164,31 +190,31 @@ def main():
                     elif active_view == 2:
                         tabla_renderable, items = render_vista_memoria(
                             resumen, memoria, selected_idx, scroll_offset, max_rows,
-                            filter_uid,
+                            filter_uid, filter_cmd,
                         )
                     elif active_view == 3:
                         tabla_renderable, items = render_vista_fds(
                             resumen, snapshot.get('fds', {}),
                             selected_idx, scroll_offset, max_rows,
-                            filter_uid,
+                            filter_uid, filter_cmd,
                         )
                     elif active_view == 4:
                         tabla_renderable, items = render_vista_threads(
                             resumen, snapshot.get('threads', {}),
                             selected_idx, scroll_offset, max_rows,
-                            filter_uid,
+                            filter_uid, filter_cmd,
                         )
                     elif active_view == 5:
                         tabla_renderable, items = render_vista_senales(
                             resumen, snapshot.get('senales', {}),
                             selected_idx, scroll_offset, max_rows,
-                            filter_uid,
+                            filter_uid, filter_cmd,
                         )
                     else:
                         tabla_renderable, items = render_vista_scheduling(
                             resumen, snapshot.get('scheduling', {}),
                             selected_idx, scroll_offset, max_rows,
-                            filter_uid,
+                            filter_uid, filter_cmd,
                         )
 
                     # === SELECCION ===
@@ -196,10 +222,6 @@ def main():
                         selected_idx = min(selected_idx, len(items) - 1)
                     else:
                         selected_idx = 0
-                    if selected_idx < scroll_offset:
-                        scroll_offset = selected_idx
-                    if items and selected_idx >= scroll_offset + max_rows:
-                        scroll_offset = selected_idx - max_rows + 1
 
                     # === PANEL INFERIOR ===
                     if ayuda_mode:
@@ -214,6 +236,14 @@ def main():
                         )
                         live.refresh()
                         tecla = leer_tecla(0.25)
+                        accion = despachar_señal(
+                            recibir_señales(0), intervalos, snapshot)
+                        if accion == 'salir':
+                            break
+                        elif accion == 'verbose':
+                            verbose_mode = not verbose_mode
+                        if tecla == 'KEY_CTRLC':
+                            break
                         if tecla in ('KEY_ENTER', 'ESC', 'q', 'h', '?'):
                             ayuda_mode = False
                         continue
@@ -232,12 +262,21 @@ def main():
                             snapshot.get('threads', {}),
                             snapshot.get('senales', {}),
                             snapshot.get('scheduling', {}),
+                            verbose_mode,
                         ))
                         layout['footer'].update(
                             Panel('Enter/Esc/q: volver', style='bold white on blue')
                         )
                         live.refresh()
                         tecla = leer_tecla(0.25)
+                        accion = despachar_señal(
+                            recibir_señales(0), intervalos, snapshot)
+                        if accion == 'salir':
+                            break
+                        elif accion == 'verbose':
+                            verbose_mode = not verbose_mode
+                        if tecla == 'KEY_CTRLC':
+                            break
                         if tecla in ('KEY_ENTER', 'ESC', 'q'):
                             detalle_pid = None
                         continue
@@ -264,17 +303,11 @@ def main():
                     tecla = leer_tecla(0.25)
 
                     senal = recibir_señales(0)
-                    if senal is not None:
-                        if senal in (signal.SIGINT, signal.SIGTERM):
-                            break
-                        elif senal == signal.SIGHUP:
-                            cargar_config(intervalos)
-                        elif senal == signal.SIGUSR1:
-                            dump_snapshot(snapshot)
-                        elif senal == signal.SIGUSR2:
-                            verbose_mode = not verbose_mode
-                        elif senal == signal.SIGWINCH:
-                            pass
+                    accion = despachar_señal(senal, intervalos, snapshot)
+                    if accion == 'salir':
+                        break
+                    elif accion == 'verbose':
+                        verbose_mode = not verbose_mode
 
                     if filter_mode:
                         if tecla is None:
@@ -371,7 +404,7 @@ def main():
             salir_modo_raw()
             shutdown_event.set()
             for p in procesos:
-                p.join(timeout=3)
+                p.join(timeout=11)
 
 
 if __name__ == '__main__':

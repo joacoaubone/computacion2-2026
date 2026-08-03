@@ -18,5 +18,5 @@
 | Componente | Estado |
 |------------|--------|
 | Bloque 0   | Pendiente |
-| TP1        | Pendiente |
+| TP1        | Listo |
 | TP2        | Pendiente |
