@@ -184,6 +184,7 @@ Además, cada analizador es un **proceso separado**, así que los intervalos son
 5. **FDs no sigue symlinks**: muestra el destino del symlink pero no resuelve archivos eliminados (deleted)
 6. **Memoria compartida serializada**: `Manager.dict()` tiene overhead de serialización — no escala a miles de procesos sin degradación
 7. **`c` (orden) es específico por vista**: la tecla `c` cicla CPU% → RSS → PID en la vista Resumen. En las vistas especializadas el orden está fijado a la métrica de identidad de cada una (Memoria ordena por RSS, FDs por cantidad, Threads por hilos, Señales y Scheduling por PID), porque ordenar por CPU% no tiene sentido sobre datos que no lo muestran
+8. **`kill -9` a un analizador en el instante exacto de una escritura al `Manager` puede trabar el server**: si se mata un analizador (`kill -9`) justo mientras serializa un mensaje al `Manager`, este queda esperando un mensaje parcial y deja de responder a los demás procesos. Es fragilidad inherente de `Manager.dict()`, no un bug de este código; con `kill` (SIGTERM) el proceso termina en un punto limpio y no ocurre
 
 ---
 
@@ -199,7 +200,7 @@ Además, cada analizador es un **proceso separado**, así que los intervalos son
 
 | Target | Comando | Qué hace |
 |--------|---------|----------|
-| `run` | `docker compose up --build` | Construye y levanta el contenedor con el monitor como proceso principal (modo entrega) |
+| `run` | `docker compose run --rm -it --build monitor` | Construye y levanta el monitor directo, interactivo (teclado completo). Evita la barra de estado que Docker Desktop muestra con `docker compose up` |
 | `dev` | `docker compose run --rm -it --name tp1-test monitor bash` | Contenedor interactivo `tp1-test` sin auto-lanzar el monitor: para probar la TUI con tu teclado |
 | `exec` | `docker compose exec monitor bash` | Entra a un bash dentro del contenedor del servicio (`tp1-monitor-1`), requiere que esté corriendo |
 | `stop` | `docker compose down` | Detiene y elimina el contenedor |
@@ -212,7 +213,9 @@ Además, cada analizador es un **proceso separado**, así que los intervalos son
 make run
 ```
 
-El Dockerfile define `CMD ["python", "src/main.py"]`, así que el monitor arranca como proceso principal del contenedor y muestra la TUI.
+`make run` ejecuta `docker compose run --rm -it --build monitor`. El Dockerfile define `CMD ["python", "src/main.py"]`, así que el monitor arranca como proceso principal del contenedor y muestra la TUI con el teclado totalmente funcional.
+
+> **Por qué `run` y no `up`:** la consigna pide `docker compose up --build` como comando único y ese comando funciona tal cual en una terminal común. En **Docker Desktop** (Compose v5), `docker compose up` en primer plano muestra una barra de estado (`view in Docker Desktop`, `w`=watch, `d`=detach) que **captura el teclado** y no lo reenvía al contenedor. `docker compose run -it` atachea directo a un contenedor one-off, sin esa barra. Por eso `make run` usa `run` y no `up`: mismo monitor, teclado completo.
 
 **Desarrollo / testeo interactivo:** `docker compose run` crea un contenedor limpio (`tp1-test`) que *no* lanza el monitor, para manejarlo con el teclado local:
 
@@ -225,7 +228,7 @@ python3 src/main.py      # el monitor, con tu teclado
 docker exec tp1-test sh -c 'kill -USR1 <PID>'
 ```
 
-> El contenedor corre con `pid: host`, así que el monitor ve y analiza los procesos reales del sistema. Probá siempre con `make dev` y no con `make run` + `make exec`: como `make run` ya lanza el monitor como proceso principal, levantar otro con `make exec` deja **dos monitores** y las señales se vuelven ambiguas (y el monitor del contenedor no se puede terminar sin detener el contenedor).
+> El contenedor corre con `pid: host`, así que el monitor ve y analiza los procesos reales del sistema. `make run` levanta el monitor en un contenedor one-off que se elimina solo al salir con `q`. No mezcles `make run` + `make exec`: `exec` apunta al contenedor del servicio (`tp1-monitor-1`), que solo existe si lo levantaste con `docker compose up -d`; correrlo mientras `make run` está activo crea **dos monitores** y las señales se vuelven ambiguas.
 
 ### Keybindings
 

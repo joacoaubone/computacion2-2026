@@ -1,7 +1,7 @@
 .PHONY: run dev exec stop
 
 run:
-	docker compose up --build
+	docker compose run --rm -it --build monitor
 
 dev:
 	docker compose run --rm -it --name tp1-test monitor bash
