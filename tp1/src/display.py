@@ -50,7 +50,7 @@ def render_tabla_procesos(resumen, memoria, selected_idx, sort_mode,
         cpu = d.get('cpu_percent', 0.0)
         thr = d.get('threads', 0)
         ppid = d.get('ppid', 0)
-        user = d.get('group', d.get('uid', '?'))
+        user = d.get('user', d.get('uid', '?'))
         m = memoria.get(pid, {})
         rss = m.get('rss', '?')
         items.append((pid, nombre, estado, cpu, rss, thr, ppid, user))
@@ -291,6 +291,7 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
     table.add_column('UT', justify='right', min_width=5)
     table.add_column('ST', justify='right', min_width=5)
     table.add_column('POLICY', min_width=4, max_width=6)
+    table.add_column('AFF', min_width=4, max_width=8)
     table.add_column('SID', justify='right', min_width=6)
     table.add_column('PGID', justify='right', min_width=6)
     table.add_column('CTX-V', justify='right', min_width=5)
@@ -311,17 +312,18 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
         utime = d.get('utime', '?')
         stime = d.get('stime', '?')
         policy = str(d.get('policy', '?'))[:6]
+        aff = str(d.get('affinity', '?'))[:8]
         sid = d.get('sessid', '?')
         pgid = d.get('pgid', '?')
         ctxt_vol = d.get('ctxt_vol', '?')
         ctxt_invol = d.get('ctxt_invol', '?')
         items.append((pid, nombre, nice, pri, rt, utime, stime,
-                      policy, sid, pgid, ctxt_vol, ctxt_invol))
+                      policy, aff, sid, pgid, ctxt_vol, ctxt_invol))
 
     items.sort(key=lambda x: x[0])
 
     if not items:
-        table.add_row('(sin datos)', '', '', '', '', '', '', '', '', '', '', '')
+        table.add_row('(sin datos)', '', '', '', '', '', '', '', '', '', '', '', '')
         return table, items
 
     if max_rows < 1:
@@ -329,10 +331,10 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
 
     end = min(scroll_offset + max_rows, len(items))
     for i in range(scroll_offset, end):
-        pid, nombre, nice, pri, rt, utime, stime, policy, sid, pgid, ctxt_vol, ctxt_invol = items[i]
+        pid, nombre, nice, pri, rt, utime, stime, policy, aff, sid, pgid, ctxt_vol, ctxt_invol = items[i]
         style = 'reverse' if i == selected_idx else ''
         table.add_row(str(pid), nombre, str(nice), str(pri), str(rt), str(utime), str(stime),
-                      policy, str(sid), str(pgid), str(ctxt_vol), str(ctxt_invol), style=style)
+                      policy, aff, str(sid), str(pgid), str(ctxt_vol), str(ctxt_invol), style=style)
 
     return table, items
 
@@ -473,6 +475,7 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling, ver
     section('Resumen')
     kv('Estado', r.get('state', '?'))
     kv('CPU%', f"{r.get('cpu_percent', 0.0):.1f}")
+    kv('Usuario', r.get('user', r.get('uid', '?')))
     kv('UID', r.get('uid', '?'))
     kv('GID', f"{r.get('gid', '?')} ({r.get('group', '?')})")
     kv('PPID', r.get('ppid', '?'))

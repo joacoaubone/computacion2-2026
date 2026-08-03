@@ -55,7 +55,7 @@ El monitor lee el filesystem `/proc` del kernel Linux para extraer información 
 |------------|---------|-----------------|
 | **Entry point** | `src/main.py` | Inicializa Manager, lanza procesos, maneja loop principal con teclado y señales |
 | **Recolector** | `src/recolector.py` | Lista PIDs desde `/proc` y los escribe al snapshot |
-| **Resumen** | `src/analizadores/resumen.py` | Nombre, estado, PPID, UID, CPU%, threads, cmdline |
+| **Resumen** | `src/analizadores/resumen.py` | Nombre, estado, PPID, UID/usuario, CPU%, threads, cmdline |
 | **Memoria** | `src/analizadores/memoria.py` | RSS, VmSize, VmHWM, VmSwap, page faults, maps |
 | **FDs** | `src/analizadores/fds.py` | File descriptors abiertos con tipo inferido (tty/socket/pipe/file) |
 | **Threads** | `src/analizadores/threads.py` | LWPs, estado, CPU% por thread |

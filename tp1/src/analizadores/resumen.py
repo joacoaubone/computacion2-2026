@@ -43,6 +43,7 @@ def resumen_loop(snapshot, shutdown_event, intervalo):
                 'uid': uid,
                 'gid': gid,
                 'group': group_name,
+                'user': procfs.resolver_uid(uid),
                 'threads': stat.get('num_threads', 0) if stat else 0,
                 'cpu_percent': round(cpu, 1),
                 'cmdline': cmdline if cmdline else [],

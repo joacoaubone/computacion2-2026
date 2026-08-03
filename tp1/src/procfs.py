@@ -264,6 +264,20 @@ def resolver_gid(gid):
     return str(gid)
 
 
+def resolver_uid(uid):
+    """Resuelve un UID numérico a nombre de usuario leyendo /etc/passwd."""
+    try:
+        uid_str = str(int(uid))
+        with open('/etc/passwd') as f:
+            for line in f:
+                parts = line.strip().split(':')
+                if len(parts) >= 3 and parts[2] == uid_str:
+                    return parts[0]
+    except (ValueError, FileNotFoundError, PermissionError):
+        pass
+    return str(uid)
+
+
 def leer_maps(pid):
     """ Devuelve una lista de diccionarios con la información de las regiones de memoria del proceso obtenida del archivo /proc/[pid]/maps. """
     try:
