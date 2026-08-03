@@ -8,64 +8,67 @@ def sistema_loop(snapshot, shutdown_event, intervalo):
     prev_total = 0
 
     while not shutdown_event.is_set():
-        resumen = snapshot.get('resumen', {})
-        memoria = snapshot.get('memoria', {})
+        try:
+            resumen = snapshot.get('resumen', {})
+            memoria = snapshot.get('memoria', {})
 
-        stat_sys = procfs.leer_stat_sistema()
-        cpu_delta = {}
-        if stat_sys and 'cpu' in stat_sys:
-            c = stat_sys['cpu']
-            total = c['user'] + c['nice'] + c['system'] + c['idle'] + c['iowait']
-            if prev_cpu is not None:
-                dt = total - prev_total
-                if dt > 0:
-                    cpu_delta = {
-                        'user': round((c['user'] - prev_cpu['user']) / dt * 100, 1),
-                        'system': round((c['system'] - prev_cpu['system']) / dt * 100, 1),
-                        'idle': round((c['idle'] - prev_cpu['idle']) / dt * 100, 1),
-                        'iowait': round((c['iowait'] - prev_cpu['iowait']) / dt * 100, 1),
-                    }
-            prev_cpu = c
-            prev_total = total
+            stat_sys = procfs.leer_stat_sistema()
+            cpu_delta = {}
+            if stat_sys and 'cpu' in stat_sys:
+                c = stat_sys['cpu']
+                total = c['user'] + c['nice'] + c['system'] + c['idle'] + c['iowait']
+                if prev_cpu is not None:
+                    dt = total - prev_total
+                    if dt > 0:
+                        cpu_delta = {
+                            'user': round((c['user'] - prev_cpu['user']) / dt * 100, 1),
+                            'system': round((c['system'] - prev_cpu['system']) / dt * 100, 1),
+                            'idle': round((c['idle'] - prev_cpu['idle']) / dt * 100, 1),
+                            'iowait': round((c['iowait'] - prev_cpu['iowait']) / dt * 100, 1),
+                        }
+                prev_cpu = c
+                prev_total = total
 
-        top_cpu = sorted(
-            resumen.items(),
-            key=lambda x: x[1].get('cpu_percent', 0),
-            reverse=True,
-        )[:3]
+            top_cpu = sorted(
+                resumen.items(),
+                key=lambda x: x[1].get('cpu_percent', 0),
+                reverse=True,
+            )[:3]
 
-        top_mem = sorted(
-            resumen.items(),
-            key=lambda x: memoria.get(x[0], {}).get('rss', 0),
-            reverse=True,
-        )[:3]
+            top_mem = sorted(
+                resumen.items(),
+                key=lambda x: memoria.get(x[0], {}).get('rss', 0),
+                reverse=True,
+            )[:3]
 
-        por_estado = {}
-        for pid, d in resumen.items():
-            st = d.get('state', '?')
-            por_estado[st] = por_estado.get(st, 0) + 1
+            por_estado = {}
+            for pid, d in resumen.items():
+                st = d.get('state', '?')
+                por_estado[st] = por_estado.get(st, 0) + 1
 
-        threads_totales = sum(d.get('threads', 0) for d in resumen.values())
+            threads_totales = sum(d.get('threads', 0) for d in resumen.values())
 
-        datos = {
-            'cpu': cpu_delta,
-            'meminfo': procfs.leer_meminfo(),
-            'loadavg': procfs.leer_loadavg(),
-            'uptime': procfs.leer_uptime(),
-            'stat_sys': stat_sys,
-            'threads_totales': threads_totales,
-            'top_cpu': [
-                {'pid': p, 'name': d.get('name', '?'), 'cpu': d.get('cpu_percent', 0)}
-                for p, d in top_cpu
-            ],
-            'top_mem': [
-                {'pid': p, 'name': resumen.get(p, {}).get('name', '?'), 'rss': memoria.get(p, {}).get('rss', 0)}
-                for p, _ in top_mem
-            ],
-            'por_estado': por_estado,
-            'total_proc': len(resumen),
-        }
+            datos = {
+                'cpu': cpu_delta,
+                'meminfo': procfs.leer_meminfo(),
+                'loadavg': procfs.leer_loadavg(),
+                'uptime': procfs.leer_uptime(),
+                'stat_sys': stat_sys,
+                'threads_totales': threads_totales,
+                'top_cpu': [
+                    {'pid': p, 'name': d.get('name', '?'), 'cpu': d.get('cpu_percent', 0)}
+                    for p, d in top_cpu
+                ],
+                'top_mem': [
+                    {'pid': p, 'name': resumen.get(p, {}).get('name', '?'), 'rss': memoria.get(p, {}).get('rss', 0)}
+                    for p, _ in top_mem
+                ],
+                'por_estado': por_estado,
+                'total_proc': len(resumen),
+            }
 
-        snapshot['sistema'] = datos
-        snapshot['sistema_ts'] = time.time()
+            snapshot['sistema'] = datos
+            snapshot['sistema_ts'] = time.time()
+        except Exception:
+            pass
         shutdown_event.wait(timeout=intervalo.value)

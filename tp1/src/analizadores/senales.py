@@ -29,28 +29,31 @@ def decodificar_mascara(hex_str):
 
 def senales_loop(snapshot, shutdown_event, intervalo):
     while not shutdown_event.is_set():
-        pids = snapshot.get('pids', [])
-        datos = {}
+        try:
+            pids = snapshot.get('pids', [])
+            datos = {}
 
-        for pid in pids:
-            status = procfs.leer_status(pid)
-            if status is None:
-                continue
-            datos[pid] = {
-                'SigBlk': decodificar_mascara(status.get('SigBlk', '0')),
-                'SigIgn': decodificar_mascara(status.get('SigIgn', '0')),
-                'SigCgt': decodificar_mascara(status.get('SigCgt', '0')),
-                'SigPnd': decodificar_mascara(status.get('SigPnd', '0')),
-                'ShdPnd': decodificar_mascara(status.get('ShdPnd', '0')),
-                'raw': {
-                    'SigBlk': status.get('SigBlk', '0'),
-                    'SigIgn': status.get('SigIgn', '0'),
-                    'SigCgt': status.get('SigCgt', '0'),
-                    'SigPnd': status.get('SigPnd', '0'),
-                    'ShdPnd': status.get('ShdPnd', '0'),
-                },
-            }
+            for pid in pids:
+                status = procfs.leer_status(pid)
+                if status is None:
+                    continue
+                datos[pid] = {
+                    'SigBlk': decodificar_mascara(status.get('SigBlk', '0')),
+                    'SigIgn': decodificar_mascara(status.get('SigIgn', '0')),
+                    'SigCgt': decodificar_mascara(status.get('SigCgt', '0')),
+                    'SigPnd': decodificar_mascara(status.get('SigPnd', '0')),
+                    'ShdPnd': decodificar_mascara(status.get('ShdPnd', '0')),
+                    'raw': {
+                        'SigBlk': status.get('SigBlk', '0'),
+                        'SigIgn': status.get('SigIgn', '0'),
+                        'SigCgt': status.get('SigCgt', '0'),
+                        'SigPnd': status.get('SigPnd', '0'),
+                        'ShdPnd': status.get('ShdPnd', '0'),
+                    },
+                }
 
-        snapshot['senales'] = datos
-        snapshot['senales_ts'] = time.time()
+            snapshot['senales'] = datos
+            snapshot['senales_ts'] = time.time()
+        except Exception:
+            pass
         shutdown_event.wait(timeout=intervalo.value)

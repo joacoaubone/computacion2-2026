@@ -250,32 +250,39 @@ def leer_thread_stat(pid, tid):
         return None
 
 
-def resolver_gid(gid):
-    """Resuelve un GID numérico a nombre de grupo leyendo /etc/group."""
+def _cargar_mapa_ids(path, campo_id):
+    """Carga /etc/passwd o /etc/group a un dict {id_str: nombre}. Se cachea una sola vez
+    al importar: releer estos archivos por proceso por ciclo sería carísimo."""
+    mapa = {}
     try:
-        gid_str = str(int(gid))
-        with open('/etc/group') as f:
+        with open(path) as f:
             for line in f:
                 parts = line.strip().split(':')
-                if len(parts) >= 3 and parts[2] == gid_str:
-                    return parts[0]
-    except (ValueError, FileNotFoundError, PermissionError):
+                if len(parts) > campo_id and parts[campo_id].isdigit():
+                    mapa[parts[campo_id]] = parts[0]
+    except (FileNotFoundError, PermissionError):
         pass
-    return str(gid)
+    return mapa
+
+
+_UID_NOMBRES = _cargar_mapa_ids('/etc/passwd', 2)
+_GID_NOMBRES = _cargar_mapa_ids('/etc/group', 2)
+
+
+def resolver_gid(gid):
+    """Resuelve un GID numérico a nombre de grupo usando el cache de /etc/group."""
+    try:
+        return _GID_NOMBRES.get(str(int(gid)), str(gid))
+    except (ValueError, TypeError):
+        return str(gid)
 
 
 def resolver_uid(uid):
-    """Resuelve un UID numérico a nombre de usuario leyendo /etc/passwd."""
+    """Resuelve un UID numérico a nombre de usuario usando el cache de /etc/passwd."""
     try:
-        uid_str = str(int(uid))
-        with open('/etc/passwd') as f:
-            for line in f:
-                parts = line.strip().split(':')
-                if len(parts) >= 3 and parts[2] == uid_str:
-                    return parts[0]
-    except (ValueError, FileNotFoundError, PermissionError):
-        pass
-    return str(uid)
+        return _UID_NOMBRES.get(str(int(uid)), str(uid))
+    except (ValueError, TypeError):
+        return str(uid)
 
 
 def leer_maps(pid):

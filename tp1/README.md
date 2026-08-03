@@ -117,7 +117,7 @@ Además, cada analizador es un **proceso separado**, así que los intervalos son
 
 - Todo el proyecto se basa en leer `/proc` para inspeccionar procesos desde fuera
 - El PID y PPID se obtienen del nombre del directorio `/proc/<pid>/` y del campo `PPid` en `/proc/<pid>/status`
-- Los zombies (estado Z) se detectan en la vista Sistema contando procesos por estado (`sistema.py:43-47`): para cada PID se lee el campo 3 de `/proc/<pid>/stat` (`state`, definido en `procfs.py:54`) y se agrupa por estado. Este concepto se vio en la clase 4 (fork, exec, wait): un zombie es un proceso terminado cuyo padre todavía no llamó a `wait()`, y el kernel conserva su entrada en la tabla de procesos solo para entregar el código de salida
+- Los zombies (estado Z) se detectan en la vista Sistema contando procesos por estado (`sistema.py:44-47`): para cada PID se lee el campo 3 de `/proc/<pid>/stat` (`state`, definido en `procfs.py:54`) y se agrupa por estado. Este concepto se vio en la clase 4 (fork, exec, wait): un zombie es un proceso terminado cuyo padre todavía no llamó a `wait()`, y el kernel conserva su entrada en la tabla de procesos solo para entregar el código de salida
 - El `fork()` ocurre internamente al hacer `p = multiprocessing.Process(target=...)` y `p.start()` — el proceso hijo es el analizador, el padre sigue ejecutando el loop principal
 
 ### Clase 5: File descriptors, pipes
@@ -162,15 +162,15 @@ Además, cada analizador es un **proceso separado**, así que los intervalos son
 
 | Concepto | Dónde está en el código |
 |----------|--------------------------|
-| CPU% por delta de jiffies | `resumen.py:24-31` — `prev[pid]` se siembra siempre, fuera del `if` |
-| Zombies (estado Z) | `sistema.py:43-47` agrupando el campo `state` de `/proc/<pid>/stat` |
-| PID vs TID (LWP) | `threads.py:17-22` — doble loop sobre `/proc/<pid>/task/`; el hilo principal cumple `tid == pid` (`procfs.py:192`) |
-| Context switches vol/invol | `scheduling.py:30-31` — `voluntary_ctxt_switches` / `nonvoluntary_ctxt_switches` |
+| CPU% por delta de jiffies | `resumen.py:27-32` — `prev[pid]` se siembra siempre, fuera del `if` |
+| Zombies (estado Z) | `sistema.py:44-47` agrupando el campo `state` de `/proc/<pid>/stat` |
+| PID vs TID (LWP) | `threads.py:18-23` — doble loop sobre `/proc/<pid>/task/`; el hilo principal cumple `tid == pid` (`procfs.py:192`) |
+| Context switches vol/invol | `scheduling.py:33-34` — `voluntary_ctxt_switches` / `nonvoluntary_ctxt_switches` |
 | Decodificación de máscaras de señales | `analizadores/senales.py:18-27` — `mask & (1 << bit)` con bit N = señal N+1 |
 | Self-pipe (async-signal-safe) | `src/senales.py:10-21` — el handler solo hace `os.write`; la acción corre en el loop principal |
-| Manager.dict y serialización | `main.py:69-71` — proceso server + proxies |
+| Manager.dict y serialización | `main.py:59-67` — proceso server + proxies |
 | Race condition TOCTOU | `procfs.py:36` — `except (FileNotFoundError, PermissionError)` ante un proceso que murió entre listar y abrir |
-| Memoria virtual (text/data/heap/stack) | `procfs.py:267-291` (`leer_maps`) + agrupación por permisos en `display.py` |
+| Memoria virtual (text/data/heap/stack) | `procfs.py:288-310` (`leer_maps`) + agrupación por permisos en `display.py` |
 | jiffies → segundos | `procfs.py:7-9` (`clk_tck`) |
 
 ---
@@ -234,8 +234,8 @@ docker exec tp1-test sh -c 'kill -USR1 <PID>'
 | `1`-`7` / `r/m/f/t/s/p/g` | Cambiar vista |
 | `↑` `↓` | Navegar procesos |
 | `Enter` | Pin proceso seleccionado |
-| `/` | Filtrar por nombre |
-| `u` | Filtrar por usuario (UID) |
+| `/` | Filtrar por nombre de proceso o comando completo |
+| `u` | Filtrar por usuario (nombre o UID) |
 | `c` | Ciclar orden (CPU% → RSS → PID) |
 | `+` / `-` | Ajustar intervalo vista activa |
 | `q` | Salir |
@@ -274,7 +274,7 @@ Checklist funcional del monitor:
 
 - [ ] Levantá el monitor y verificá las 7 vistas (`1`-`7` o `r/m/f/t/s/p/g`)
 - [ ] Navegá con `↑`/`↓` y abrí el detalle de un proceso con `Enter` (cierra con Enter/Esc/q)
-- [ ] Filtrá por nombre con `/`, por UID con `u`; cancelá con `ESC`
+- [ ] Filtrá por nombre o comando con `/`, por usuario (nombre o UID) con `u`; cancelá con `ESC`
 - [ ] Cambiá el orden con `c` (CPU% → RSS → PID) y el intervalo de la vista activa con `+`/`-`
 - [ ] `q` sale limpiamente y restaura la terminal
 

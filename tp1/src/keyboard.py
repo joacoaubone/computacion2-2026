@@ -52,7 +52,7 @@ def leer_tecla(timeout=0.25):
             return 'KEY_ENTER'
         if ch == '\x03':
             return 'KEY_CTRLC'
-        if ch == '\x7f':
+        if ch in ('\x7f', '\x08'):
             return 'KEY_BACKSPACE'
         if ord(ch) < 32:
             return None

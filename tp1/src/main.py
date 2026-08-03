@@ -99,40 +99,18 @@ def main():
             'scheduling': multiprocessing.Value('d', 10.0),
         }
 
-        procesos = [
-            multiprocessing.Process(
-                target=recolector_loop,
-                args=(snapshot, shutdown_event, intervalos['recolector']),
-            ),
-            multiprocessing.Process(
-                target=resumen_loop,
-                args=(snapshot, shutdown_event, intervalos['resumen']),
-            ),
-            multiprocessing.Process(
-                target=memoria_loop,
-                args=(snapshot, shutdown_event, intervalos['memoria']),
-            ),
-            multiprocessing.Process(
-                target=sistema_loop,
-                args=(snapshot, shutdown_event, intervalos['sistema']),
-            ),
-            multiprocessing.Process(
-                target=fds_loop,
-                args=(snapshot, shutdown_event, intervalos['fds']),
-            ),
-            multiprocessing.Process(
-                target=threads_loop,
-                args=(snapshot, shutdown_event, intervalos['threads']),
-            ),
-            multiprocessing.Process(
-                target=senales_loop,
-                args=(snapshot, shutdown_event, intervalos['senales']),
-            ),
-            multiprocessing.Process(
-                target=scheduling_loop,
-                args=(snapshot, shutdown_event, intervalos['scheduling']),
-            ),
+        specs = [
+            (recolector_loop, (snapshot, shutdown_event, intervalos['recolector'])),
+            (resumen_loop, (snapshot, shutdown_event, intervalos['resumen'])),
+            (memoria_loop, (snapshot, shutdown_event, intervalos['memoria'])),
+            (sistema_loop, (snapshot, shutdown_event, intervalos['sistema'])),
+            (fds_loop, (snapshot, shutdown_event, intervalos['fds'])),
+            (threads_loop, (snapshot, shutdown_event, intervalos['threads'])),
+            (senales_loop, (snapshot, shutdown_event, intervalos['senales'])),
+            (scheduling_loop, (snapshot, shutdown_event, intervalos['scheduling'])),
         ]
+
+        procesos = [multiprocessing.Process(target=t, args=a) for t, a in specs]
 
         for p in procesos:
             p.start()
@@ -347,7 +325,7 @@ def main():
                         if tecla == 'KEY_BACKSPACE':
                             filter_user_text = filter_user_text[:-1]
                             continue
-                        if isinstance(tecla, str) and len(tecla) == 1 and tecla.isdigit():
+                        if isinstance(tecla, str) and len(tecla) == 1:
                             filter_user_text += tecla
                         continue
 

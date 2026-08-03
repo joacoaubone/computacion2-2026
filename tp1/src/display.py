@@ -10,6 +10,33 @@ NOMBRES_VISTA = {
 }
 
 
+def _matchea_filtro(resumen, pid, filter_cmd):
+    """True si el proceso matchea el filtro '/': busca en el nombre completo
+    y en la línea de comando (no en el nombre truncado a 16 chars)."""
+    if not filter_cmd:
+        return True
+    d = resumen.get(pid, {})
+    if not isinstance(d, dict):
+        return False
+    nombre = str(d.get('name', '?'))
+    cmdline = d.get('cmdline', [])
+    if not isinstance(cmdline, list):
+        cmdline = []
+    haystack = ' '.join([nombre] + [str(x) for x in cmdline]).lower()
+    return filter_cmd.lower() in haystack
+
+
+def _matchea_usuario(resumen, pid, filter_uid):
+    """True si el proceso matchea el filtro 'u': busca como substring en el
+    nombre de usuario (root, joaquin, ...) o en el UID numérico."""
+    if not filter_uid:
+        return True
+    d = resumen.get(pid, {})
+    if not isinstance(d, dict):
+        return False
+    return filter_uid in str(d.get('uid', '')) or filter_uid in str(d.get('user', ''))
+
+
 def crear_layout():
     layout = Layout()
     layout.split_column(
@@ -43,7 +70,9 @@ def render_tabla_procesos(resumen, memoria, selected_idx, sort_mode,
 
     items = []
     for pid, d in resumen.items():
-        if filter_uid and str(d.get('uid', '')) != filter_uid:
+        if not _matchea_usuario(resumen, pid, filter_uid):
+            continue
+        if not _matchea_filtro(resumen, pid, filter_cmd):
             continue
         nombre = str(d.get('name', '?'))[:16]
         estado = d.get('state', '?')[:3]
@@ -54,9 +83,6 @@ def render_tabla_procesos(resumen, memoria, selected_idx, sort_mode,
         m = memoria.get(pid, {})
         rss = m.get('rss', '?')
         items.append((pid, nombre, estado, cpu, rss, thr, ppid, user))
-
-    if filter_cmd: # filtro de / 
-        items = [i for i in items if filter_cmd.lower() in i[1].lower()]
 
     if sort_mode == 0: # ordenar por CPU
         items.sort(key=lambda x: x[3], reverse=True)
@@ -109,9 +135,9 @@ def render_vista_memoria(resumen, memoria, selected_idx, scroll_offset, max_rows
 
     items = []
     for pid, d in memoria.items():
-        if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+        if not _matchea_usuario(resumen, pid, filter_uid):
             continue
-        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
+        if not _matchea_filtro(resumen, pid, filter_cmd):
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         rss = d.get('rss', 0)
@@ -156,9 +182,9 @@ def render_vista_fds(resumen, fds, selected_idx, scroll_offset, max_rows,
     for pid, fds_list in fds.items():
         if not isinstance(fds_list, list):
             continue
-        if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+        if not _matchea_usuario(resumen, pid, filter_uid):
             continue
-        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
+        if not _matchea_filtro(resumen, pid, filter_cmd):
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         tipos = {}
@@ -200,9 +226,9 @@ def render_vista_threads(resumen, threads, selected_idx, scroll_offset, max_rows
     for pid, tids in threads.items():
         if not isinstance(tids, list):
             continue
-        if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+        if not _matchea_usuario(resumen, pid, filter_uid):
             continue
-        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
+        if not _matchea_filtro(resumen, pid, filter_cmd):
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:20]
         estados = {}
@@ -250,9 +276,9 @@ def render_vista_senales(resumen, senales, selected_idx, scroll_offset, max_rows
     for pid, d in senales.items():
         if not isinstance(d, dict):
             continue
-        if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+        if not _matchea_usuario(resumen, pid, filter_uid):
             continue
-        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
+        if not _matchea_filtro(resumen, pid, filter_cmd):
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         blk = ','.join(d.get('SigBlk', []))[:12]
@@ -301,9 +327,9 @@ def render_vista_scheduling(resumen, scheduling, selected_idx, scroll_offset, ma
     for pid, d in scheduling.items():
         if not isinstance(d, dict):
             continue
-        if filter_uid and str(resumen.get(pid, {}).get('uid', '')) != filter_uid:
+        if not _matchea_usuario(resumen, pid, filter_uid):
             continue
-        if filter_cmd and filter_cmd.lower() not in str(resumen.get(pid, {}).get('name', '?')).lower():
+        if not _matchea_filtro(resumen, pid, filter_cmd):
             continue
         nombre = str(resumen.get(pid, {}).get('name', '?'))[:16]
         nice = d.get('nice', '?')
@@ -480,8 +506,12 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling, ver
     kv('GID', f"{r.get('gid', '?')} ({r.get('group', '?')})")
     kv('PPID', r.get('ppid', '?'))
     kv('Threads', r.get('threads', 0))
-    cmd = r.get('cmdline', '')
-    kv('Cmdline', cmd[:200] if cmd else '(none)')
+    cmd = r.get('cmdline', [])
+    if isinstance(cmd, list):
+        cmd_str = ' '.join(str(x) for x in cmd)
+    else:
+        cmd_str = str(cmd)
+    kv('Cmdline', cmd_str[:200] if cmd_str else '(none)')
 
     section('Memoria')
     kv('RSS (KB)', f"{m.get('rss', '?'):.0f}" if isinstance(m.get('rss'), (int, float)) else str(m.get('rss', '?')))
@@ -557,11 +587,15 @@ def render_detalle(pid, resumen, memoria, fds, threads, senales, scheduling, ver
         kv('Threads', '(sin datos)')
 
     section('Señales')
-    kv('SigBlk', s.get('SigBlk', '?'))
-    kv('SigIgn', s.get('SigIgn', '?'))
-    kv('SigCgt', s.get('SigCgt', '?'))
-    kv('SigPnd', s.get('SigPnd', '?'))
-    kv('ShdPnd', s.get('ShdPnd', '?'))
+    def lista_legible(val):
+        if isinstance(val, list):
+            return ', '.join(str(x) for x in val)
+        return str(val) if val else '?'
+    kv('SigBlk', lista_legible(s.get('SigBlk')))
+    kv('SigIgn', lista_legible(s.get('SigIgn')))
+    kv('SigCgt', lista_legible(s.get('SigCgt')))
+    kv('SigPnd', lista_legible(s.get('SigPnd')))
+    kv('ShdPnd', lista_legible(s.get('ShdPnd')))
 
     section('Scheduling')
     kv('Nice', sc.get('nice', '?'))
@@ -595,7 +629,7 @@ def render_footer(filter_cmd='', sort_mode=0, intervalo=2.0, filter_mode=False,
         text.append('Filtrar: ', style='bold')
         text.append(filter_text + '_')
     elif filter_user_mode:
-        text.append('UID: ', style='bold')
+        text.append('Usuario: ', style='bold')
         text.append(filter_user_text + '_')
     else:
         text.append('1-7/rmftspg', style='bold')
@@ -603,7 +637,7 @@ def render_footer(filter_cmd='', sort_mode=0, intervalo=2.0, filter_mode=False,
         text.append('  /filtro')
         if filter_cmd:
             text.append(f'[{filter_cmd}]', style='yellow')
-        text.append('  u:uid')
+        text.append('  u:user')
         if filter_uid:
             text.append(f'[{filter_uid}]', style='yellow')
         text.append(f'  c:{NOMBRES_ORDEN.get(sort_mode, "?")}')
@@ -628,8 +662,8 @@ def render_ayuda():
     text.append('    t s p   Threads / Señales / Scheduling\n')
     text.append('    g       Sistema global\n\n')
     text.append('  Filtros y orden\n', style='bold')
-    text.append('    /       Filtrar por nombre de proceso\n')
-    text.append('    u       Filtrar por UID (número)\n')
+    text.append('    /       Filtrar por nombre o comando\n')
+    text.append('    u       Filtrar por usuario (nombre o UID)\n')
     text.append('    c       Cambiar orden (CPU/RSS/PID)\n\n')
     text.append('  Intervalos\n', style='bold')
     text.append('    +       Aumentar intervalo (+0.5s)\n')
