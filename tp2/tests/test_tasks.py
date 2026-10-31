@@ -7,6 +7,7 @@ from tp2.app.tasks import (
     HashSubmission,
     InvalidTaskTransition,
     TaskKind,
+    TaskCapacityError,
     TaskRegistry,
     TaskState,
     TaskSubmission,
@@ -94,3 +95,45 @@ def test_failed_task_requires_a_failure_reason() -> None:
 
     with pytest.raises(ValueError, match="failure_reason is required"):
         registry.transition(task.id, TaskState.FAILED)
+
+
+def test_registry_evicts_oldest_terminal_record_at_capacity() -> None:
+    registry = TaskRegistry(max_retained_tasks=2)
+    oldest = registry.create(
+        HashSubmission(tipo="hashear", texto="oldest", iteraciones=1),
+        timeout_seconds=10,
+    )
+    registry.transition(oldest.id, TaskState.RUNNING)
+    registry.transition(oldest.id, TaskState.COMPLETED, result="digest")
+
+    newer_terminal = registry.create(
+        HashSubmission(tipo="hashear", texto="newer", iteraciones=1),
+        timeout_seconds=10,
+    )
+    registry.transition(newer_terminal.id, TaskState.CANCELLED)
+
+    newest = registry.create(
+        HashSubmission(tipo="hashear", texto="newest", iteraciones=1),
+        timeout_seconds=10,
+    )
+
+    assert registry.get(oldest.id) is None
+    assert registry.get(newer_terminal.id) is newer_terminal
+    assert registry.get(newest.id) is newest
+    assert len(registry.list()) == 2
+
+
+def test_registry_rejects_when_all_retained_records_are_nonterminal() -> None:
+    registry = TaskRegistry(max_retained_tasks=1)
+    existing = registry.create(
+        HashSubmission(tipo="hashear", texto="active", iteraciones=1),
+        timeout_seconds=10,
+    )
+
+    with pytest.raises(TaskCapacityError):
+        registry.create(
+            HashSubmission(tipo="hashear", texto="rejected", iteraciones=1),
+            timeout_seconds=10,
+        )
+
+    assert registry.list() == [existing]

@@ -31,8 +31,12 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             "Previous task snapshot found at %s; it will not be restored",
             previous_snapshot,
         )
-    application.state.task_registry = TaskRegistry()
-    application.state.task_queue = asyncio.Queue()
+    application.state.task_registry = TaskRegistry(
+        max_retained_tasks=application.state.settings.max_retained_tasks
+    )
+    application.state.task_queue = asyncio.Queue(
+        maxsize=application.state.settings.max_retained_tasks
+    )
     application.state.process_pool = ProcessPoolExecutor(
         max_workers=application.state.settings.process_pool_workers
     )

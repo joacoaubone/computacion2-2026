@@ -19,6 +19,7 @@ from tp2.app.handlers import download_urls
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+TP2_DIRECTORY = Path(__file__).resolve().parents[1]
 
 
 def available_port() -> int:
@@ -165,6 +166,7 @@ def main() -> None:
     port = available_port()
     base_url = f"http://127.0.0.1:{port}"
     environment = os.environ.copy()
+    environment["TP2_STATE_DIR"] = str(TP2_DIRECTORY / "data")
     server = subprocess.Popen(
         [
             sys.executable,

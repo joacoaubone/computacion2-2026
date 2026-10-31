@@ -86,6 +86,10 @@ class InvalidTaskTransition(ValueError):
     """Raised when a task is moved to a state it cannot enter."""
 
 
+class TaskCapacityError(RuntimeError):
+    """Raised when no retained task can be evicted to accept a new task."""
+
+
 _ALLOWED_TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.PENDING: frozenset({TaskState.RUNNING, TaskState.CANCELLED}),
     TaskState.RUNNING: frozenset(
@@ -95,6 +99,14 @@ _ALLOWED_TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.FAILED: frozenset(),
     TaskState.CANCELLED: frozenset(),
 }
+
+_TERMINAL_STATES = frozenset(
+    {
+        TaskState.COMPLETED,
+        TaskState.FAILED,
+        TaskState.CANCELLED,
+    }
+)
 
 
 @dataclass(slots=True)
@@ -127,16 +139,20 @@ class TaskRecord:
 
 
 class TaskRegistry:
-    """Store task records and enforce their allowed state transitions."""
+    """Store a bounded task history and enforce allowed state transitions."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_retained_tasks: int = 1_000) -> None:
+        if max_retained_tasks < 1:
+            raise ValueError("max_retained_tasks must be positive")
         self._tasks: dict[str, TaskRecord] = {}
+        self.max_retained_tasks = max_retained_tasks
 
     def create(
         self, submission: TaskSubmission, timeout_seconds: float
     ) -> TaskRecord:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        self._make_room()
 
         if isinstance(submission, DownloadSubmission):
             kind = TaskKind.DOWNLOAD
@@ -159,6 +175,23 @@ class TaskRegistry:
         )
         self._tasks[task.id] = task
         return task
+
+    def _make_room(self) -> None:
+        """Evict the oldest terminal record, or reject when all slots are live."""
+        if len(self._tasks) < self.max_retained_tasks:
+            return
+
+        oldest_terminal = next(
+            (
+                task
+                for task in self._tasks.values()
+                if task.status in _TERMINAL_STATES
+            ),
+            None,
+        )
+        if oldest_terminal is None:
+            raise TaskCapacityError("All retained task slots are in use")
+        del self._tasks[oldest_terminal.id]
 
     def get(self, task_id: str) -> TaskRecord | None:
         return self._tasks.get(task_id)

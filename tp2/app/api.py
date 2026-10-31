@@ -5,6 +5,7 @@ from statistics import fmean
 from fastapi import APIRouter, FastAPI, HTTPException, Request, status
 
 from .tasks import (
+    TaskCapacityError,
     TaskNotFoundError,
     TaskRegistry,
     TaskResponse,
@@ -31,11 +32,28 @@ async def submit_task(submission: TaskSubmission, request: Request) -> TaskRespo
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="El servicio está cerrando y no acepta tareas nuevas",
         )
-    task = _registry(request).create(
-        submission,
-        timeout_seconds=request.app.state.settings.task_timeout_seconds,
-    )
-    request.app.state.task_queue.put_nowait(task.id)
+    task_queue = request.app.state.task_queue
+    if task_queue.full():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="La cola está llena; intente enviar la tarea nuevamente más tarde",
+        )
+
+    try:
+        task = _registry(request).create(
+            submission,
+            timeout_seconds=request.app.state.settings.task_timeout_seconds,
+        )
+    except TaskCapacityError as error:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Se alcanzó el límite de tareas retenidas y no hay tareas "
+                "terminales para liberar espacio"
+            ),
+        ) from error
+
+    task_queue.put_nowait(task.id)
     return TaskResponse.from_record(task)
 
 

@@ -48,6 +48,7 @@ class Settings:
     task_timeout_seconds: float = 60.0
     shutdown_timeout_seconds: float = 10.0
     hash_batch_iterations: int = 10_000
+    max_retained_tasks: int = 1_000
     state_dir: Path = Path("data")
 
     @classmethod
@@ -67,6 +68,9 @@ class Settings:
             ),
             hash_batch_iterations=_positive_int(
                 "TP2_HASH_BATCH_ITERATIONS", defaults.hash_batch_iterations
+            ),
+            max_retained_tasks=_positive_int(
+                "TP2_MAX_RETAINED_TASKS", defaults.max_retained_tasks
             ),
             state_dir=Path(os.getenv("TP2_STATE_DIR", str(defaults.state_dir))),
         )

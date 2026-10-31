@@ -98,6 +98,69 @@ def test_post_rejects_new_tasks_after_shutdown_admission_closes() -> None:
         assert client.app.state.task_queue.qsize() == 0
 
 
+def test_post_rejects_when_queue_is_full_without_creating_a_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TP2_MAX_RETAINED_TASKS", "1")
+    with TestClient(create_app(start_workers=False)) as client:
+        accepted = client.post(
+            "/tareas", json={"tipo": "esperar", "segundos": 1}
+        )
+        rejected = client.post(
+            "/tareas", json={"tipo": "esperar", "segundos": 1}
+        )
+
+        assert accepted.status_code == 202
+        assert rejected.status_code == 429
+        assert len(client.app.state.task_registry.list()) == 1
+        assert client.app.state.task_queue.qsize() == 1
+
+
+def test_post_rejects_when_all_retained_records_are_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TP2_MAX_RETAINED_TASKS", "1")
+    with TestClient(create_app(start_workers=False)) as client:
+        accepted = client.post(
+            "/tareas", json={"tipo": "esperar", "segundos": 1}
+        )
+        task_id = accepted.json()["id"]
+        queued_id = client.app.state.task_queue.get_nowait()
+        client.app.state.task_queue.task_done()
+        assert queued_id == task_id
+
+        rejected = client.post(
+            "/tareas", json={"tipo": "esperar", "segundos": 1}
+        )
+
+        assert rejected.status_code == 429
+        assert len(client.app.state.task_registry.list()) == 1
+        assert client.app.state.task_registry.get(task_id).status is TaskState.PENDING
+        assert client.app.state.task_queue.qsize() == 0
+
+
+def test_post_evicts_terminal_history_and_old_id_returns_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TP2_MAX_RETAINED_TASKS", "1")
+    with TestClient(create_app(start_workers=False)) as client:
+        accepted = client.post(
+            "/tareas", json={"tipo": "esperar", "segundos": 1}
+        )
+        old_id = accepted.json()["id"]
+        client.app.state.task_queue.get_nowait()
+        client.app.state.task_queue.task_done()
+        client.app.state.task_registry.transition(old_id, TaskState.CANCELLED)
+
+        next_task = client.post(
+            "/tareas", json={"tipo": "esperar", "segundos": 1}
+        )
+
+        assert next_task.status_code == 202
+        assert client.get(f"/tareas/{old_id}").status_code == 404
+        assert len(client.app.state.task_registry.list()) == 1
+
+
 def test_list_filters_and_get_returns_task_result() -> None:
     with TestClient(create_app(start_workers=False)) as client:
         first = client.post(

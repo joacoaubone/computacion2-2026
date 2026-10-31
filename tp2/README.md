@@ -48,7 +48,10 @@ python main.py
 La API queda disponible en `http://localhost:8000`. La documentación interactiva
 de FastAPI está en `http://localhost:8000/docs`. El pool de workers se configura
 con `TP2_WORKERS` (default `4`) y el executor con `TP2_PROCESS_POOL_WORKERS`
-(default `2`). Los snapshots se guardan bajo `TP2_STATE_DIR` (default `./data`).
+(default `2`). Cada tarea tiene un timeout configurable por
+`TP2_TASK_TIMEOUT_SECONDS` (default `60`). El máximo de registros retenidos se
+configura con `TP2_MAX_RETAINED_TASKS` (default `1000`). Los snapshots se guardan
+bajo `TP2_STATE_DIR` (default `./data`).
 
 ## Ejecutar con Docker Compose
 
@@ -144,7 +147,7 @@ responde `422`.
 
 | Endpoint | Respuesta esperada | Errores principales |
 |---|---|---|
-| `POST /tareas` | `202`, ID y estado `pendiente` | `422` si el tipo o sus campos no son válidos; `503` durante el apagado |
+| `POST /tareas` | `202`, ID y estado `pendiente` | `422` si el tipo o sus campos no son válidos; `429` por saturación; `503` durante el apagado |
 | `GET /tareas` | `200`, lista (opcionalmente filtrada por `estado`) | `422` si el filtro no es un estado válido |
 | `GET /tareas/{id}` | `200`, estado y resultado/error disponible | `404` si el ID no existe |
 | `DELETE /tareas/{id}` | `200` después de cancelar y completar la limpieza | `404` si el ID no existe; `409` si ya es terminal |
@@ -172,6 +175,20 @@ La respuesta contiene totales en `por_estado`, el promedio de duración en
 `duracion_promedio_segundos` (o `null` si todavía no hay duraciones registradas)
 y el total actual de `workers_ocupados`.
 
+## Límite de tareas y retención
+
+El servicio conserva como máximo `TP2_MAX_RETAINED_TASKS` registros (default
+`1000`), contando tareas pendientes, en ejecución y terminales. La cola también
+tiene ese límite. Si se llena la cola o todos los registros disponibles siguen
+pendientes/en ejecución, `POST /tareas` responde `429 Too Many Requests` sin
+crear ni encolar la nueva tarea; el cliente puede reintentar más tarde.
+
+Cuando el registro llegó a su capacidad pero hay historial terminal, la próxima
+admisión elimina los registros terminales más antiguos hasta liberar espacio.
+Las tareas pendientes o en ejecución nunca se purgan. Por eso un ID antiguo
+puede dejar de existir y responder `404`; `/tareas`, `/estadisticas` y el próximo
+snapshot representan solo los registros que todavía se retienen.
+
 ## Apagado y snapshots
 
 Al recibir SIGTERM o SIGINT, la API deja de aceptar tareas y drena las tareas ya
@@ -188,6 +205,8 @@ restaura ni vuelve a ejecutar** esas tareas.
 
 - El registro operativo es en memoria; el JSON es una copia para inspección, no
   un mecanismo de recuperación o reanudación.
+- El registro y la cola están acotados por `TP2_MAX_RETAINED_TASKS`; al saturarse,
+  nuevas altas reciben `429`, y resultados terminales antiguos pueden purgarse.
 - Si se agota el plazo de apagado, las tareas activas se cancelan y las que no
   llegaron a empezar quedan pendientes en el snapshot.
 - La cancelación de `hashear` es cooperativa: espera a que termine el lote de
@@ -240,7 +259,8 @@ python -m tp2.benchmarks.measurements
 El script inicia un servidor de benchmark temporal en `127.0.0.1`, ejecuta las
 tres pruebas y emite el entorno y los resultados en JSON. Las rutas
 `/__benchmark/*` solo existen en ese servidor local; no forman parte de la API
-normal.
+normal. Los snapshots de ese proceso se escriben bajo `tp2/data/`, que está
+ignorado por Git junto con los datos de ejecución normales.
 
 **Entorno de esta ejecución:** Python 3.13.5, macOS 26.5.1 arm64, 4 workers de
 coroutines (`TP2_WORKERS`) y 2 procesos (`TP2_PROCESS_POOL_WORKERS`). Los valores
