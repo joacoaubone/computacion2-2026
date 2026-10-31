@@ -1,0 +1,83 @@
+{
+  "environment": {
+    "python": "3.13.5",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "worker_count": "4",
+    "process_pool_workers": "2"
+  },
+  "io_20_downloads": {
+    "url_count": 20,
+    "delay_ms_per_url": 20,
+    "sequential_seconds": 0.48770920900278725,
+    "concurrent_seconds": 0.05240233299264219,
+    "speedup": 9.307013278803188,
+    "responses": 20
+  },
+  "event_loop_latency": {
+    "inline": {
+      "get_tareas_latency_seconds": 0.1112274999904912,
+      "hash_request_seconds": 0.14849
+    },
+    "executor": {
+      "get_tareas_latency_seconds": 0.008515042005456053,
+      "hash_request_seconds": 0.253201
+    }
+  },
+  "pool_throughput": [
+    {
+      "task_count": 1,
+      "iterations_per_task": 500000,
+      "median_elapsed_seconds": 0.11268741599633358,
+      "samples_seconds": [
+        0.11268741599633358,
+        0.11203866699361242,
+        0.12174895800126251
+      ],
+      "tasks_per_second": 8.874105339610734
+    },
+    {
+      "task_count": 2,
+      "iterations_per_task": 500000,
+      "median_elapsed_seconds": 0.13846537499921396,
+      "samples_seconds": [
+        0.2063496250048047,
+        0.13846537499921396,
+        0.13443908299086615
+      ],
+      "tasks_per_second": 14.444044224134398
+    },
+    {
+      "task_count": 4,
+      "iterations_per_task": 500000,
+      "median_elapsed_seconds": 0.24389137500838842,
+      "samples_seconds": [
+        0.24389137500838842,
+        0.23866091600211803,
+        0.24616950000927318
+      ],
+      "tasks_per_second": 16.400743978184646
+    },
+    {
+      "task_count": 8,
+      "iterations_per_task": 500000,
+      "median_elapsed_seconds": 0.4975012500071898,
+      "samples_seconds": [
+        0.49859991599805653,
+        0.4966102500038687,
+        0.4975012500071898
+      ],
+      "tasks_per_second": 16.08036160689925
+    },
+    {
+      "task_count": 16,
+      "iterations_per_task": 500000,
+      "median_elapsed_seconds": 0.9706138329929672,
+      "samples_seconds": [
+        0.9660713339981157,
+        0.9706138329929672,
+        0.9714627080102218
+      ],
+      "tasks_per_second": 16.484413735030635
+    }
+  ]
+}

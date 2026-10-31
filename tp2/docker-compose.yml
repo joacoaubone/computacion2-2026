@@ -1,0 +1,14 @@
+services:
+  api:
+    build:
+      context: .
+    ports:
+      - "${TP2_HOST_PORT:-8000}:8000"
+    environment:
+      TP2_WORKERS: "${TP2_WORKERS:-4}"
+      TP2_PROCESS_POOL_WORKERS: "${TP2_PROCESS_POOL_WORKERS:-2}"
+      TP2_SHUTDOWN_TIMEOUT_SECONDS: "${TP2_SHUTDOWN_TIMEOUT_SECONDS:-10}"
+      TP2_STATE_DIR: /app/data
+    volumes:
+      - ./data:/app/data
+    init: true
