@@ -1,42 +1,30 @@
-# TP2 - Plataforma de Tareas Distribuidas
+# TP2 — Plataforma de Tareas Distribuidas
 
-API HTTP del Trabajo Práctico Nº 2 de Computación II. El sistema acepta tareas
-asíncronas de descarga, hash y espera, y permite consultar su estado y resultado.
+Trabajo Práctico Nº 2 de Computación II — Universidad de Mendoza — 2026.
 
-## Arquitectura
+## 1. Descripción y uso
 
-```text
-+----------+      +----------------------+      +-------------------+
-| Cliente  | ---> | FastAPI               | ---> | TaskRegistry      |
-+----------+      | POST/GET/DELETE tareas|      | estado/resultados|
-                  +----------+-----------+      +---------+---------+
-                             | encola ID                   ^
-                             v                             |
-                  +----------+-----------+                |
-                  | asyncio.Queue        |                |
-                  +----------+-----------+                |
-                             | consume ID                 |
-                             v                             |
-                  +----------+-----------+                |
-                  | WorkerPool (N workers)|----------------+
-                  +---+----------+--------+
-                      |          |
-          +-----------+          +----------------+
-          |                                        |
-          v                                        v
-+---------+-----------+                 +----------+----------+
-| descargar           |                 | esperar / hashear   |
-| httpx.AsyncClient   |                 | asyncio / executor  |
-+---------------------+                 +---------------------+
+La plataforma recibe tareas por HTTP, las encola para su ejecución concurrente y permite consultar su estado y resultado. Soporta tres tipos: `descargar` (I/O de red), `hashear` (cálculo CPU-bound) y `esperar` (espera asíncrona). El `POST /tareas` devuelve `202 Accepted` después de aceptar y encolar la tarea; no espera a que termine.
+
+### Ejecutar con Docker Compose
+
+Desde el directorio `tp2/`, donde están el `Dockerfile` y `docker-compose.yml`:
+
+```bash
+docker compose up --build
 ```
 
-`POST /tareas` valida el tipo, guarda la tarea como `pendiente` y encola su ID.
-Un worker la pasa a `ejecutando`, ejecuta el handler correspondiente y registra
-resultado, error o cancelación. Los endpoints de consulta leen el mismo registro.
+La API queda disponible en `http://localhost:8000` y la documentación interactiva de FastAPI en `http://localhost:8000/docs`. Para detener el servicio ordenadamente, presioná `Ctrl+C` o ejecutá desde otra terminal:
 
-## Ejecutar localmente
+```bash
+docker compose stop
+```
 
-Desde este directorio, con Python 3.11 o superior:
+También podés usar `docker compose down`. Los snapshots quedan en `tp2/data/` del host gracias al volumen configurado en Compose.
+
+### Ejecutar localmente
+
+Desde el directorio `tp2/`, con Python 3.11 o superior:
 
 ```bash
 python -m venv .venv
@@ -45,210 +33,116 @@ pip install -r requirements.txt
 python main.py
 ```
 
-La API queda disponible en `http://localhost:8000`. La documentación interactiva
-de FastAPI está en `http://localhost:8000/docs`. El pool de workers se configura
-con `TP2_WORKERS` (default `4`) y el executor con `TP2_PROCESS_POOL_WORKERS`
-(default `2`). Cada tarea tiene un timeout configurable por
-`TP2_TASK_TIMEOUT_SECONDS` (default `60`). El máximo de registros retenidos se
-configura con `TP2_MAX_RETAINED_TASKS` (default `1000`). Los snapshots se guardan
-bajo `TP2_STATE_DIR` (default `./data`).
+La configuración se puede modificar con variables de entorno: `TP2_WORKERS` (default `4`), `TP2_PROCESS_POOL_WORKERS` (`2`), `TP2_TASK_TIMEOUT_SECONDS` (`60`), `TP2_SHUTDOWN_TIMEOUT_SECONDS` (`10`), `TP2_MAX_RETAINED_TASKS` (`1000`) y `TP2_STATE_DIR` (`./data`).
 
-## Ejecutar con Docker Compose
+### Enviar tareas con `curl`
 
-Desde este directorio:
+Esperar dos segundos:
 
 ```bash
-docker compose up --build
-```
-
-La API queda publicada en `http://localhost:8000`:
-
-```bash
-curl http://localhost:8000/estadisticas
-```
-
-El servicio monta `./data` del host para conservar los snapshots. Para detenerlo
-ordenadamente, usá `Ctrl+C` en la terminal de Compose o, desde otra terminal:
-
-```bash
-docker compose stop
-```
-
-`docker compose stop` envía SIGTERM al contenedor. También podés usar
-`docker compose down`; el directorio enlazado `./data` permanece en el host.
-
-## Enviar tareas
-
-`POST /tareas` responde `202 Accepted` al aceptar una tarea, sin esperar su
-ejecución. El campo `tipo` discrimina los formatos; los campos específicos van
-directamente en el objeto JSON:
-
-```bash
-# Esperar dos segundos
 curl -i -X POST http://localhost:8000/tareas \
   -H 'Content-Type: application/json' \
   -d '{"tipo":"esperar","segundos":2}'
+```
 
-# Calcular SHA-256 iterado
+Calcular un hash SHA-256 iterado:
+
+```bash
 curl -i -X POST http://localhost:8000/tareas \
   -H 'Content-Type: application/json' \
   -d '{"tipo":"hashear","texto":"hola","iteraciones":1000}'
+```
 
-# Descargar varias URLs
+Descargar una o más URLs:
+
+```bash
 curl -i -X POST http://localhost:8000/tareas \
   -H 'Content-Type: application/json' \
   -d '{"tipo":"descargar","urls":["https://example.com"]}'
 ```
 
-`iteraciones` debe ser mayor que cero; `segundos` debe ser cero o mayor; y
-`urls` debe contener al menos una URL HTTP o HTTPS. Un `tipo` desconocido, un
-campo requerido ausente o un campo adicional no admitido responde `422` y no
-encola la solicitud.
-
-Una respuesta aceptada tiene esta forma:
-
-```json
-{
-  "id": "<identificador-opaco>",
-  "tipo": "esperar",
-  "estado": "pendiente",
-  "creado_en": "<fecha-hora ISO 8601>",
-  "iniciado_en": null,
-  "terminado_en": null,
-  "duracion_segundos": null,
-  "resultado": null,
-  "error": null
-}
-```
-
-Cuando termina, `resultado` contiene el resultado según el tipo de tarea:
-
-- `esperar`: `{"segundos": 2.0}`.
-- `hashear`: digest SHA-256 iterado codificado en hexadecimal.
-- `descargar`: lista con `url`, `status_code`, `size_bytes` y `elapsed_seconds`
-  por URL; una solicitud fallida incluye además `error` y no descarta los
-  resultados de las demás URLs.
-
-## Consultar tareas
+La respuesta aceptada incluye un `id` y normalmente el estado inicial `pendiente`. Usá ese ID para consultar o cancelar la tarea:
 
 ```bash
-# Listar todas o filtrar por estado
+curl 'http://localhost:8000/tareas/<id>'
 curl 'http://localhost:8000/tareas'
 curl 'http://localhost:8000/tareas?estado=pendiente'
-
-# Consultar una tarea por ID
-curl 'http://localhost:8000/tareas/<id>'
-```
-
-Los estados posibles son `pendiente`, `ejecutando`, `completada`, `fallida` y
-`cancelada`. El detalle incluye resultado o motivo de error cuando están
-disponibles. Un ID inexistente responde `404`; un filtro de estado no válido
-responde `422`.
-
-| Endpoint | Respuesta esperada | Errores principales |
-|---|---|---|
-| `POST /tareas` | `202`, ID y estado `pendiente` | `422` si el tipo o sus campos no son válidos; `429` por saturación; `503` durante el apagado |
-| `GET /tareas` | `200`, lista (opcionalmente filtrada por `estado`) | `422` si el filtro no es un estado válido |
-| `GET /tareas/{id}` | `200`, estado y resultado/error disponible | `404` si el ID no existe |
-| `DELETE /tareas/{id}` | `200` después de cancelar y completar la limpieza | `404` si el ID no existe; `409` si ya es terminal |
-| `GET /estadisticas` | `200`, totales por estado, promedio de duración y workers ocupados | — |
-
-## Cancelar tareas
-
-```bash
 curl -i -X DELETE 'http://localhost:8000/tareas/<id>'
-```
-
-- `200`: la tarea fue cancelada. Para una tarea en ejecución, la respuesta se
-  envía luego de completar la limpieza.
-- `404`: no existe una tarea con ese ID.
-- `409`: la tarea ya está en un estado terminal y no se modifica; la respuesta
-  informa el estado actual.
-
-## Estadísticas
-
-```bash
 curl 'http://localhost:8000/estadisticas'
 ```
 
-La respuesta contiene totales en `por_estado`, el promedio de duración en
-`duracion_promedio_segundos` (o `null` si todavía no hay duraciones registradas)
-y el total actual de `workers_ocupados`.
+Los estados posibles son `pendiente`, `ejecutando`, `completada`, `fallida` y `cancelada`. Una tarea `descargar` devuelve por URL el código HTTP, el tamaño y el tiempo; los errores individuales se incluyen en el resultado sin descartar las demás descargas. `hashear` devuelve el digest hexadecimal y `esperar`, la cantidad de segundos solicitada.
 
-## Límite de tareas y retención
+Pydantic valida los cuerpos: `iteraciones` debe ser mayor que cero, `segundos` no puede ser negativo y `urls` debe contener al menos una URL HTTP o HTTPS. Un tipo desconocido, un campo requerido ausente o un campo adicional no permitido responde `422`.
 
-El servicio conserva como máximo `TP2_MAX_RETAINED_TASKS` registros (default
-`1000`), contando tareas pendientes, en ejecución y terminales. La cola también
-tiene ese límite. Si se llena la cola o todos los registros disponibles siguen
-pendientes/en ejecución, `POST /tareas` responde `429 Too Many Requests` sin
-crear ni encolar la nueva tarea; el cliente puede reintentar más tarde.
+| Endpoint | Respuesta esperada | Errores principales |
+|---|---|---|
+| `POST /tareas` | `202`, ID y estado inicial | `422` por datos inválidos; `429` por saturación; `503` durante el apagado |
+| `GET /tareas` | `200`, lista filtrable por estado | `422` si el filtro no es válido |
+| `GET /tareas/{id}` | `200`, estado y resultado/error | `404` si el ID no existe |
+| `DELETE /tareas/{id}` | `200` si se cancela | `404` si no existe; `409` si ya terminó o no se pudo cancelar |
+| `GET /estadisticas` | `200`, totales, duración promedio y workers ocupados | — |
 
-Cuando el registro llegó a su capacidad pero hay historial terminal, la próxima
-admisión elimina los registros terminales más antiguos hasta liberar espacio.
-Las tareas pendientes o en ejecución nunca se purgan. Por eso un ID antiguo
-puede dejar de existir y responder `404`; `/tareas`, `/estadisticas` y el próximo
-snapshot representan solo los registros que todavía se retienen.
+La plataforma conserva hasta `TP2_MAX_RETAINED_TASKS` registros. Si se llena la cola o no quedan registros terminales que puedan purgarse, las nuevas solicitudes reciben `429`. Los registros terminales más antiguos pueden eliminarse para liberar lugar; los pendientes y en ejecución no se purgan.
 
-## Apagado y snapshots
+### Pruebas automatizadas
 
-Al recibir SIGTERM o SIGINT, la API deja de aceptar tareas y drena las tareas ya
-aceptadas durante el período configurado por `TP2_SHUTDOWN_TIMEOUT_SECONDS`
-(default `10` segundos). Si vence el plazo, cancela la ejecución activa y guarda
-las tareas aún no iniciadas como `pendiente`. El snapshot atómico
-`estado_<timestamp>.json` queda en `TP2_STATE_DIR` (`./data` local;
-`/app/data` dentro del contenedor y montado como `./data` en el host).
+Desde la raíz del repositorio:
 
-Al iniciar, el servicio informa por log el snapshot más reciente, pero **no
-restaura ni vuelve a ejecutar** esas tareas.
+```bash
+python -m pytest tp2/tests -v
+```
 
-## Limitaciones conocidas y reflexión personal
+## 2. Diagrama de arquitectura
 
-- El registro operativo es en memoria; el JSON es una copia para inspección, no
-  un mecanismo de recuperación o reanudación.
-- El registro y la cola están acotados por `TP2_MAX_RETAINED_TASKS`; al saturarse,
-  nuevas altas reciben `429`, y resultados terminales antiguos pueden purgarse.
-- Si se agota el plazo de apagado, las tareas activas se cancelan y las que no
-  llegaron a empezar quedan pendientes en el snapshot.
-- La cancelación de `hashear` es cooperativa: espera a que termine el lote de
-  SHA-256 que ya se está ejecutando en el proceso hijo.
-- El servicio no incluye autenticación, broker distribuido ni coordinación
-  entre varias instancias.
+```text
+Cliente HTTP
+    |
+    v
+FastAPI — api.py
+    | POST: valida, crea registro y encola el ID
+    +-----------------------> TaskRegistry — tasks.py
+    |                              estado y resultados
+    v
+asyncio.Queue
+    |
+    v
+WorkerPool — workers.py (N corrutinas)
+    |
+    v
+TaskExecutor — execution.py
+    +--> descargar: handlers.py -> httpx.AsyncClient -> URLs concurrentes
+    +--> esperar: asyncio.sleep
+    +--> hashear: run_in_executor -> ProcessPoolExecutor
+    |
+    +-----------------------> TaskRegistry actualiza estado/resultado
 
-**Completar personalmente antes de entregar (2–3 párrafos):**
+Apagado: application.py/lifespan -> workers -> snapshots.py -> estado_<timestamp>.json
+```
 
-- ¿Qué aprendiste sobre el drenaje de una cola y el cierre de recursos al apagar?
-- ¿Qué diferencia observaste entre detener un worker y guardar el estado para
-  inspeccionarlo después?
-- ¿Qué limitación o decisión de diseño cambiarías si el servicio tuviera que
-  reanudar tareas automáticamente?
+El flujo de una tarea es: `POST /tareas` valida la solicitud, crea un registro `pendiente` y encola su ID; un worker lo consume y pasa a `ejecutando`; el ejecutor despacha el trabajo según su tipo; al finalizar, el registro queda `completada`, `fallida` o `cancelada`. Las consultas HTTP leen el registro compartido.
 
-## Decisiones de diseño y conceptos del curso
+## 3. Decisiones de diseño argumentadas
 
-- **Productor-consumidor y event loop (clases 17–18):** `POST /tareas` produce
-  IDs en una `asyncio.Queue`; las corrutinas worker los consumen. Las
-  transiciones del registro son operaciones síncronas breves dentro del mismo
-  event loop, por lo que no intercalan ejecución ni requieren `Lock`.
-- **I/O asíncrono y multiplexing (clases 13–14, 17 y 20–21):** cada descarga
-  usa `httpx.AsyncClient`; las URLs se esperan concurrentemente dentro de un
-  `asyncio.TaskGroup`, permitiendo que el event loop atienda otras corrutinas
-  mientras espera la red y espere la limpieza de los requests si se cancela el
-  grupo.
-- **CPU-bound y `concurrent.futures` (clase 22):** hashear no se delega a una
-  corrutina por sí sola, porque el cálculo Python bloquearía el event loop. Se
-  ejecuta por lotes en `ProcessPoolExecutor`; la coroutine espera cada lote y
-  puede atender HTTP entre lotes.
-- **Cancelación (clases 18 y 20–21):** `esperar` usa `asyncio.sleep`, no
-  `time.sleep`; el `DELETE` cancela la ejecución y espera a que el worker marque
-  la tarea `cancelada` tras completar la limpieza. Los errores de una tarea se
-  guardan como `fallida` sin matar el worker. Cada request de descarga usa un
-  context manager HTTP para liberar la respuesta también ante cancelación.
-- **Aislamiento de excepciones:** un error esperado de una URL se devuelve junto
-  a esa URL y no descarta los resultados de sus hermanas; una excepción de
-  handler marca esa tarea `fallida`, y el consumidor continúa con la siguiente.
-- **Starlette y ASGI:** FastAPI se apoya en Starlette para el ciclo ASGI y el
-  enrutamiento. El proyecto define rutas y validación mediante FastAPI.
+### ¿Por qué `asyncio.Queue` y no `queue.Queue`?
 
-## Mediciones
+`asyncio.Queue` está diseñada para productores y consumidores que son corrutinas: `await queue.get()` suspende al worker cuando no hay elementos y permite que el event loop atienda otras tareas. En cambio, `queue.Queue.get()` es una operación bloqueante para threads; usarla directamente en una corrutina podría bloquear el event loop. Los workers y las rutas comparten el mismo event loop, y las operaciones breves del registro no contienen `await`; por eso esas modificaciones no se intercalan y no requieren un `Lock` explícito. `asyncio.Queue` no es una cola para compartir entre hilos del sistema operativo.
+
+### ¿Cómo se evita que una tarea CPU-bound congele la API?
+
+El hasheo se ejecuta mediante `loop.run_in_executor` con un `ProcessPoolExecutor`. El bucle de hashes corre en un proceso separado, de modo que el hilo del event loop puede continuar atendiendo rutas HTTP y otras corrutinas. `hash_text` divide las iteraciones en lotes acotados; espera cada lote y puede revisar una cancelación entre lotes. Esto no elimina el costo de CPU: el número de procesos y los recursos de la máquina limitan el throughput.
+
+### ¿Cómo se implementó la cancelación y qué pasa con recursos en uso?
+
+`DELETE /tareas/{id}` cambia directamente a `cancelada` una tarea todavía pendiente. Si está ejecutándose, cancela su corrutina y espera el `completion_event` antes de responder. El worker maneja `CancelledError`, actualiza el estado y limpia las referencias y el contador de workers en un `finally`.
+
+Las descargas usan `async with` para cerrar la respuesta HTTP al terminar o cancelarse. En un hash, una llamada ya iniciada en el proceso hijo no se puede detener inmediatamente: `asyncio.shield` y la espera del lote actual permiten terminar ese lote antes de propagar la cancelación; no se envían más lotes. Al apagar, el `lifespan` cierra también el cliente HTTP y el `ProcessPoolExecutor`.
+
+### ¿Qué pasa si un worker lanza una excepción no capturada?
+
+Las excepciones normales (`Exception`) producidas por el procesador se capturan en `_execute`: la tarea se marca `fallida` con el motivo y el worker puede continuar con la siguiente. Si una excepción escapa de esa gestión —por ejemplo, ocurre fuera del bloque que la captura—, `_consume` ejecuta `queue.task_done()` en su `finally`, pero la corrutina worker termina. El sistema no tiene un supervisor que la reinicie automáticamente, por lo que puede quedar con menos workers disponibles. Esta es una limitación conocida.
+
+## 4. Mediciones obligatorias
 
 Las mediciones se pueden repetir desde la raíz del repositorio:
 
@@ -256,65 +150,73 @@ Las mediciones se pueden repetir desde la raíz del repositorio:
 python -m tp2.benchmarks.measurements
 ```
 
-El script inicia un servidor de benchmark temporal en `127.0.0.1`, ejecuta las
-tres pruebas y emite el entorno y los resultados en JSON. Las rutas
-`/__benchmark/*` solo existen en ese servidor local; no forman parte de la API
-normal. Los snapshots de ese proceso se escriben bajo `tp2/data/`, que está
-ignorado por Git junto con los datos de ejecución normales.
+El script inicia un servidor local temporal, ejecuta las tres pruebas y muestra el entorno y resultados como JSON. Sus rutas `/__benchmark/*` no forman parte de la API normal. El resultado completo de la corrida documentada está en [`benchmarks/validation-results.json`](benchmarks/validation-results.json).
 
-**Entorno de esta ejecución:** Python 3.13.5, macOS 26.5.1 arm64, 4 workers de
-coroutines (`TP2_WORKERS`) y 2 procesos (`TP2_PROCESS_POOL_WORKERS`). Los valores
-son una muestra de esta máquina; pueden variar entre ejecuciones y plataformas.
-El JSON completo de esta ejecución está en
-[`benchmarks/validation-results.json`](benchmarks/validation-results.json).
+**Entorno registrado:** Python 3.13.5, macOS 26.5.1 arm64, 4 workers y 2 procesos en el pool. Los tiempos dependen del equipo y pueden variar entre ejecuciones.
 
 ### Concurrencia I/O: 20 descargas
 
-Las 20 solicitudes HTTP apuntaron al servidor local de benchmark, que agrega
-20 ms de espera asíncrona por respuesta. Así se compara la concurrencia del
-cliente sin depender de la disponibilidad o rate limits de sitios externos.
+El servidor local de benchmark agrega 20 ms de espera asíncrona por respuesta. Se comparan 20 descargas secuenciales con las mismas 20 descargas concurrentes.
 
 | Ejecución | Tiempo |
 |---|---:|
-| Secuencial | 0,4877 s |
-| Concurrente | 0,0524 s |
-| Speedup | **9,31×** |
+| Secuencial | 0,4763 s |
+| Concurrente | 0,0463 s |
+| Speedup | **10,29×** |
 
-Las solicitudes se solapan: el tiempo concurrente se acerca al de una sola
-espera más el costo de red local, no a la suma de las 20 esperas.
+Las esperas de red se solapan: el tiempo concurrente se acerca al de una espera, más el costo de las solicitudes locales, y no a la suma de las 20 esperas.
 
-### Event loop durante CPU-bound
+### Latencia del event loop durante CPU-bound
 
-El endpoint aislado de benchmark aplica 750.000 hashes SHA-256 en línea
-(bloqueando deliberadamente el event loop) o vía `ProcessPoolExecutor`. Se mide
-el tiempo de `GET /tareas` 50 ms después de iniciar el hash.
+Se mide `GET /tareas` mientras el endpoint de benchmark calcula 750.000 hashes SHA-256 en línea o mediante `ProcessPoolExecutor`.
 
 | Modo de hash | Latencia de `GET /tareas` | Tiempo de la solicitud de hash |
 |---|---:|---:|
-| Inline, sin executor | 111,2 ms | 148,5 ms |
-| `ProcessPoolExecutor` | 8,5 ms | 253,2 ms |
+| Inline, sin executor | 255,8 ms | 291,6 ms |
+| `ProcessPoolExecutor` | 19,1 ms | 501,1 ms |
 
-El executor mantiene disponible el event loop para responder HTTP mientras el
-cálculo sigue en otro proceso. La mayor duración total del hash con executor
-incluye el costo de iniciar/coordinar el proceso; la comparación relevante aquí
-es la latencia concurrente de la API.
+El modo inline bloquea el event loop y demora la respuesta HTTP. Con executor, `GET /tareas` responde antes porque el cálculo se ejecuta en otro proceso. El tiempo total del hash con executor es mayor en esta medición e incluye el costo de coordinar el proceso; la comparación principal es la latencia de la API mientras el hash está en curso.
 
 ### Techo del pool
 
-Se enviaron lotes crecientes de tareas `hashear`, de 500.000 iteraciones cada
-una. Cada punto es la mediana de tres ejecuciones, con cuatro workers de
-coroutines y un `ProcessPoolExecutor` de dos procesos.
+Se enviaron lotes crecientes de tareas `hashear`, de 500.000 iteraciones por tarea. Cada tiempo es la mediana de tres muestras, con cuatro workers de corrutinas y dos procesos.
 
 | Tareas en el lote | Tiempo mediano | Throughput |
 |---:|---:|---:|
-| 1 | 0,1127 s | 8,87 tareas/s |
-| 2 | 0,1385 s | 14,44 tareas/s |
-| 4 | 0,2439 s | 16,40 tareas/s |
-| 8 | 0,4975 s | 16,08 tareas/s |
-| 16 | 0,9706 s | 16,48 tareas/s |
+| 1 | 0,2335 s | 4,28 tareas/s |
+| 2 | 0,2401 s | 8,33 tareas/s |
+| 4 | 0,4219 s | 9,48 tareas/s |
+| 8 | 0,8355 s | 9,58 tareas/s |
+| 16 | 1,6696 s | 9,58 tareas/s |
 
-En esta ejecución el throughput se estabiliza entre **16,1 y 16,5 tareas/s**
-desde los lotes de cuatro; al duplicar de 8 a 16 tareas, el tiempo total casi se
-duplica sin un aumento material del throughput. En esta carga el cálculo
-CPU-bound y los dos procesos del executor son el techo, no la cantidad de
-corrutinas HTTP. El encolado adicional agrega latencia, pero no capacidad de CPU.
+El throughput aumenta al pasar de uno a cuatro trabajos, pero se estabiliza cerca de **9,5–9,6 tareas/s** desde los lotes de cuatro. A partir de ese punto, agregar tareas aumenta la espera y el tiempo total, pero casi no agrega capacidad de procesamiento. En esta configuración, el cálculo CPU-bound y los dos procesos disponibles limitan el pool; el valor concreto también depende del hardware.
+
+## 5. Conceptos del curso aplicados
+
+- **Productor-consumidor y sincronización (Clase 11, `clase_11_sincronizacion`):** `POST /tareas` produce IDs en una `asyncio.Queue` compartida y las corrutinas de `WorkerPool` los consumen. Es el patrón productor-consumidor visto en clase, implementado con corrutinas en vez de threads. Las operaciones breves sobre el registro no tienen puntos de suspensión, así que no intercalan modificaciones y no necesitan un `Lock` explícito.
+- **Multiplexing, corrutinas y red (Clases 17, 18 y 20):** `download_urls` usa `httpx.AsyncClient` y `asyncio.TaskGroup` para solapar esperas de red. Mientras una corrutina espera una respuesta, el event loop puede ejecutar otras. Esto conecta el I/O multiplexado con `async`/`await` y la programación asíncrona en red.
+- **HTTP y FastAPI (Clase 19, `clase_19_http_fastapi`):** `api.py` define las rutas, recibe los modelos validados por Pydantic y devuelve respuestas HTTP. Por ejemplo, `POST /tareas` responde `202 Accepted` porque acepta el trabajo para procesarlo después.
+- **Cancelación asíncrona (Clase 21, `clase_21_asyncio_avanzado`):** el endpoint de cancelación solicita la cancelación de la corrutina, y `hash_text` espera que termine el lote ya enviado al proceso antes de propagarla. Así se contempla que cancelar una corrutina no detiene instantáneamente un cálculo que ya está ejecutándose en otro proceso.
+- **Ejecutores (Clase 22, `clase_22_concurrent_futures`):** `TaskExecutor.hash_text` delega lotes de SHA-256 con `loop.run_in_executor` y `ProcessPoolExecutor`. Esto evita ejecutar el cálculo intensivo en el event loop.
+
+## 6. Limitaciones conocidas
+
+- El registro operativo vive en memoria. El snapshot es para inspección y no restaura ni reanuda tareas al reiniciar.
+- El registro y la cola son acotados; ante saturación se rechazan nuevas tareas con `429`, y los registros terminales antiguos pueden purgarse.
+- El apagado solo espera hasta `TP2_SHUTDOWN_TIMEOUT_SECONDS`. Al vencer el plazo, cancela las tareas activas y guarda como `pendiente` las tareas que todavía no empezaron.
+- La cancelación de un hash es cooperativa: el lote que ya se ejecuta en el proceso hijo termina antes de que se complete la cancelación.
+- Si una excepción inesperada termina una corrutina worker fuera de la gestión normal de errores, no hay un supervisor que la reinicie.
+- El servicio no incluye autenticación, reintentos automáticos, broker de mensajes ni coordinación entre varias instancias. La cola reside en una sola instancia del proceso.
+
+## 7. Lo que aprendí
+
+Al completar el TP2, aprendí que el event loop de `asyncio` permite manejar mucha
+concurrencia con un solo hilo siempre y cuando las tareas no bloqueen el loop con
+operaciones síncronas. Descubrí que las tareas CPU-bound, como el hasheo, deben
+ejecutarse en un `ProcessPoolExecutor` para no congelar la API, y que la
+cancelación cooperativa requiere cuidado: hay que esperar a que los lotes
+terminen antes de propagarla. También entendí la importancia de los snapshots
+al apagar el servicio, porque permiten inspeccionar el estado de las tareas
+después del apagado, y que limitar la cantidad de tareas retenidas evita un
+crecimiento ilimitado del uso de memoria, aunque las tareas terminales antiguas
+puedan eliminarse para liberar espacio.
