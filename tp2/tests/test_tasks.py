@@ -1,4 +1,4 @@
-"""Tests for task request validation and in-memory lifecycle state."""
+"""Pruebas de validación de solicitudes y estados del ciclo de vida en memoria."""
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
@@ -93,7 +93,7 @@ def test_failed_task_requires_a_failure_reason() -> None:
     )
     registry.transition(task.id, TaskState.RUNNING)
 
-    with pytest.raises(ValueError, match="failure_reason is required"):
+    with pytest.raises(ValueError, match="Se requiere un motivo"):
         registry.transition(task.id, TaskState.FAILED)
 
 

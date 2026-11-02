@@ -1,4 +1,4 @@
-"""Smoke tests for application startup and shutdown."""
+"""Pruebas básicas de inicio y apagado de la aplicación."""
 
 import asyncio
 import subprocess

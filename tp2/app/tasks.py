@@ -1,4 +1,4 @@
-"""Task request models, lifecycle state, and in-memory task registry."""
+"""Modelos de solicitud, estados del ciclo de vida y registro de tareas en memoria."""
 
 import asyncio
 from dataclasses import dataclass, field
@@ -51,7 +51,7 @@ TaskSubmission = Annotated[
 
 
 class TaskResponse(BaseModel):
-    """Public representation of a task record returned by the HTTP API."""
+    """Representación pública de una tarea devuelta por la API HTTP."""
 
     id: str
     tipo: TaskKind
@@ -79,15 +79,15 @@ class TaskResponse(BaseModel):
 
 
 class TaskNotFoundError(LookupError):
-    """Raised when a task identifier is not present in the registry."""
+    """Se lanza cuando el registro no contiene el identificador de una tarea."""
 
 
 class InvalidTaskTransition(ValueError):
-    """Raised when a task is moved to a state it cannot enter."""
+    """Se lanza cuando se intenta cambiar una tarea a un estado no permitido."""
 
 
 class TaskCapacityError(RuntimeError):
-    """Raised when no retained task can be evicted to accept a new task."""
+    """Se lanza cuando no se puede liberar espacio para aceptar una tarea nueva."""
 
 
 _ALLOWED_TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
@@ -111,7 +111,7 @@ _TERMINAL_STATES = frozenset(
 
 @dataclass(slots=True)
 class TaskRecord:
-    """Mutable in-memory record for one submitted task."""
+    """Registro mutable en memoria de una tarea enviada."""
 
     id: str
     kind: TaskKind
@@ -132,18 +132,18 @@ class TaskRecord:
 
     @property
     def duration_seconds(self) -> float | None:
-        """Return elapsed execution time once a task has started and finished."""
+        """Devuelve el tiempo de ejecución cuando la tarea ya comenzó y terminó."""
         if self.started_at is None or self.finished_at is None:
             return None
         return (self.finished_at - self.started_at).total_seconds()
 
 
 class TaskRegistry:
-    """Store a bounded task history and enforce allowed state transitions."""
+    """Mantiene un historial acotado de tareas y aplica las transiciones permitidas."""
 
     def __init__(self, max_retained_tasks: int = 1_000) -> None:
         if max_retained_tasks < 1:
-            raise ValueError("max_retained_tasks must be positive")
+            raise ValueError("El máximo de tareas retenidas debe ser positivo")
         self._tasks: dict[str, TaskRecord] = {}
         self.max_retained_tasks = max_retained_tasks
 
@@ -151,7 +151,7 @@ class TaskRegistry:
         self, submission: TaskSubmission, timeout_seconds: float
     ) -> TaskRecord:
         if timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be positive")
+            raise ValueError("El tiempo límite debe ser positivo")
         self._make_room()
 
         if isinstance(submission, DownloadSubmission):
@@ -177,7 +177,7 @@ class TaskRegistry:
         return task
 
     def _make_room(self) -> None:
-        """Evict the oldest terminal record, or reject when all slots are live."""
+        """Elimina el registro terminal más antiguo o rechaza si todos siguen activos."""
         if len(self._tasks) < self.max_retained_tasks:
             return
 
@@ -190,7 +190,9 @@ class TaskRegistry:
             None,
         )
         if oldest_terminal is None:
-            raise TaskCapacityError("All retained task slots are in use")
+            raise TaskCapacityError(
+                "Todos los espacios para tareas retenidas están ocupados"
+            )
         del self._tasks[oldest_terminal.id]
 
     def get(self, task_id: str) -> TaskRecord | None:
@@ -219,11 +221,11 @@ class TaskRegistry:
         task = self.get_or_raise(task_id)
         if new_state not in _ALLOWED_TRANSITIONS[task.status]:
             raise InvalidTaskTransition(
-                f"Cannot transition task from {task.status.value} "
-                f"to {new_state.value}"
+                f"No se puede cambiar la tarea del estado {task.status.value} "
+                f"al estado {new_state.value}"
             )
         if new_state is TaskState.FAILED and not failure_reason:
-            raise ValueError("failure_reason is required for a failed task")
+            raise ValueError("Se requiere un motivo para marcar la tarea como fallida")
 
         now = datetime.now(timezone.utc)
         task.status = new_state

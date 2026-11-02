@@ -1,4 +1,4 @@
-"""Tests for lifespan shutdown, task snapshots, and previous-snapshot logging."""
+"""Pruebas del apagado, las instantáneas de tareas y el registro de instantáneas previas."""
 
 import asyncio
 import json

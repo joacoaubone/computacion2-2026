@@ -1,4 +1,4 @@
-"""Local-only ASGI endpoints used by ``measurements.py``."""
+"""Endpoints ASGI locales utilizados por ``measurements.py``."""
 
 import asyncio
 from typing import Literal

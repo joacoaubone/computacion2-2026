@@ -1,1 +1,1 @@
-"""Application package for the distributed task platform."""
+"""Paquete de la aplicación de la plataforma de tareas distribuidas."""

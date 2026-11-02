@@ -1,4 +1,4 @@
-"""FastAPI application factory and basic lifespan handling."""
+"""Fábrica de la aplicación FastAPI y gestión básica de su ciclo de vida."""
 
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
@@ -22,13 +22,13 @@ logger = logging.getLogger("uvicorn.error")
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-    """Load runtime settings on startup and release app state on shutdown."""
+    """Carga la configuración al iniciar y libera los recursos al apagar."""
     application.state.settings = get_settings()
     application.state.settings.state_dir.mkdir(parents=True, exist_ok=True)
     previous_snapshot = newest_snapshot(application.state.settings.state_dir)
     if previous_snapshot is not None:
         logger.info(
-            "Previous task snapshot found at %s; it will not be restored",
+            "Se encontró una instantánea anterior de tareas en %s; no se restaurará",
             previous_snapshot,
         )
     application.state.task_registry = TaskRegistry(
@@ -76,8 +76,8 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
                     )
                 except TimeoutError:
                     logger.warning(
-                        "Shutdown grace period expired after %.3f seconds; "
-                        "cancelling active tasks",
+                        "El período de gracia del apagado venció después de %.3f segundos; "
+                        "se cancelarán las tareas activas",
                         application.state.settings.shutdown_timeout_seconds,
                     )
             await application.state.worker_pool.close()
@@ -87,9 +87,12 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
                     application.state.task_registry,
                     application.state.settings.state_dir,
                 )
-                logger.info("Task state snapshot written to %s", snapshot_path)
+                logger.info(
+                    "Se guardó la instantánea del estado de las tareas en %s",
+                    snapshot_path,
+                )
             except Exception:
-                logger.exception("Failed to write task state snapshot")
+                logger.exception("No se pudo guardar la instantánea del estado de las tareas")
         finally:
             await application.state.http_client.aclose()
             await asyncio.to_thread(
@@ -104,7 +107,7 @@ def create_app(
     start_workers: bool = True,
     http_transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
-    """Create the API application without starting runtime resources."""
+    """Crea la aplicación API sin iniciar los recursos de ejecución."""
     application = FastAPI(
         title="Plataforma de Tareas Distribuidas",
         lifespan=lifespan,

@@ -1,7 +1,7 @@
-"""Central configuration for the TP2 service.
+"""Configuración central del servicio TP2.
 
-Settings are read when ``get_settings`` is called so importing this module does
-not start workers, create executors, or otherwise spawn child processes.
+La configuración se lee al llamar a ``get_settings`` para que importar este
+módulo no inicie workers, cree ejecutores ni genere procesos secundarios.
 """
 
 from dataclasses import dataclass
@@ -17,10 +17,10 @@ def _positive_int(name: str, default: int) -> int:
     try:
         value = int(raw_value)
     except ValueError as error:
-        raise ValueError(f"{name} must be a positive integer") from error
+        raise ValueError(f"{name} debe ser un entero positivo") from error
 
     if value < 1:
-        raise ValueError(f"{name} must be a positive integer")
+        raise ValueError(f"{name} debe ser un entero positivo")
     return value
 
 
@@ -32,16 +32,16 @@ def _positive_float(name: str, default: float) -> float:
     try:
         value = float(raw_value)
     except ValueError as error:
-        raise ValueError(f"{name} must be a positive number") from error
+        raise ValueError(f"{name} debe ser un número positivo") from error
 
     if value <= 0:
-        raise ValueError(f"{name} must be a positive number")
+        raise ValueError(f"{name} debe ser un número positivo")
     return value
 
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    """Runtime settings shared by the API and task execution service."""
+    """Configuración de ejecución compartida por la API y el servicio de tareas."""
 
     worker_count: int = 4
     process_pool_workers: int = 2
@@ -53,7 +53,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        """Build settings from TP2 environment variables and safe defaults."""
+        """Crea la configuración a partir de variables de entorno y valores seguros."""
         defaults = cls()
         return cls(
             worker_count=_positive_int("TP2_WORKERS", defaults.worker_count),
@@ -77,5 +77,5 @@ class Settings:
 
 
 def get_settings() -> Settings:
-    """Return settings for the current process environment."""
+    """Devuelve la configuración correspondiente al entorno del proceso actual."""
     return Settings.from_env()

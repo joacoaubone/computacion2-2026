@@ -1,4 +1,4 @@
-"""Tests for asynchronous task handlers."""
+"""Pruebas de los controladores asíncronos de tareas."""
 
 import asyncio
 import platform

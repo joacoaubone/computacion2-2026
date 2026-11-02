@@ -1,4 +1,4 @@
-"""Tests for worker concurrency and failure isolation."""
+"""Pruebas de concurrencia de workers y aislamiento de errores."""
 
 import asyncio
 
@@ -53,7 +53,7 @@ async def test_worker_failure_does_not_stop_later_tasks() -> None:
 
     async def processor(task):
         if task.parameters["texto"] == "broken":
-            raise RuntimeError("processor failed")
+            raise RuntimeError("Falló el procesador")
         return "recovered"
 
     pool = WorkerPool(queue, registry, processor, worker_count=1)
@@ -64,7 +64,7 @@ async def test_worker_failure_does_not_stop_later_tasks() -> None:
     await pool.close()
 
     assert broken.status is TaskState.FAILED
-    assert broken.failure_reason == "processor failed"
+    assert broken.failure_reason == "Falló el procesador"
     assert following.status is TaskState.COMPLETED
     assert following.result == "recovered"
 
@@ -130,7 +130,7 @@ async def test_timeout_marks_task_failed_and_worker_processes_next_task() -> Non
     await pool.close()
 
     assert timed_out.status is TaskState.FAILED
-    assert "timeout" in (timed_out.failure_reason or "")
+    assert "Tiempo de espera agotado" in (timed_out.failure_reason or "")
     assert timed_out.completion_event.is_set()
     assert timed_out.execution_task is None
     assert following.status is TaskState.COMPLETED

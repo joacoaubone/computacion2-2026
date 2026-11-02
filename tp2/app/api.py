@@ -1,4 +1,4 @@
-"""HTTP routes for submitting and observing tasks."""
+"""Rutas HTTP para enviar y consultar tareas."""
 
 from statistics import fmean
 

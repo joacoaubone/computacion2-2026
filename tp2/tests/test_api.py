@@ -1,4 +1,4 @@
-"""HTTP contract tests for task submission and inspection."""
+"""Pruebas del contrato HTTP para enviar y consultar tareas."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -213,7 +213,7 @@ def test_delete_cancels_queued_task_and_rejects_terminal_task() -> None:
     ("terminal_state", "failure_reason"),
     [
         (TaskState.COMPLETED, None),
-        (TaskState.FAILED, "timeout after 0.01 seconds"),
+        (TaskState.FAILED, "Tiempo de espera agotado después de 0.01 segundos"),
     ],
 )
 def test_delete_returns_conflict_when_completion_or_timeout_wins(

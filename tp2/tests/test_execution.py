@@ -1,4 +1,4 @@
-"""Tests for CPU-bound task execution and cooperative cancellation."""
+"""Pruebas de ejecución de tareas limitadas por CPU y cancelación cooperativa."""
 
 import asyncio
 from concurrent.futures import ProcessPoolExecutor

@@ -1,1 +1,1 @@
-"""Local-only benchmark helpers for the TP2 service."""
+"""Herramientas de benchmark local para el servicio TP2."""

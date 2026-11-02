@@ -1,4 +1,4 @@
-"""Configurable coroutine workers consuming task IDs from an asyncio queue."""
+"""Workers de corrutinas configurables que consumen IDs de una cola de asyncio."""
 
 import asyncio
 from collections.abc import Awaitable, Callable
@@ -12,7 +12,7 @@ WorkerCountChanged = Callable[[int], None]
 
 
 class WorkerPool:
-    """Consume queued tasks with a fixed number of independent workers."""
+    """Consume tareas encoladas mediante una cantidad fija de workers independientes."""
 
     def __init__(
         self,
@@ -23,7 +23,7 @@ class WorkerPool:
         on_worker_count_changed: WorkerCountChanged | None = None,
     ) -> None:
         if worker_count < 1:
-            raise ValueError("worker_count must be positive")
+            raise ValueError("La cantidad de workers debe ser un entero positivo")
         self.queue = queue
         self.registry = registry
         self.processor = processor
@@ -41,7 +41,7 @@ class WorkerPool:
         return bool(self._workers)
 
     async def start(self) -> None:
-        """Start the configured worker coroutines exactly once."""
+        """Inicia las corrutinas worker configuradas una sola vez."""
         if self._workers:
             return
         self._workers = [
@@ -50,7 +50,7 @@ class WorkerPool:
         ]
 
     async def close(self) -> None:
-        """Cancel and join worker coroutines, including their active task."""
+        """Cancela y espera a las corrutinas worker, incluida su tarea activa."""
         workers, self._workers = self._workers, []
         for worker in workers:
             worker.cancel()
@@ -87,7 +87,10 @@ class WorkerPool:
                 self.registry.transition(
                     task.id,
                     TaskState.FAILED,
-                    failure_reason=f"timeout after {task.timeout_seconds:g} seconds",
+                    failure_reason=(
+                        f"Tiempo de espera agotado después de "
+                        f"{task.timeout_seconds:g} segundos"
+                    ),
                 )
         except asyncio.CancelledError:
             worker = asyncio.current_task()

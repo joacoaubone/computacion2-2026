@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for isolated TP2 state snapshots."""
+"""Fixtures compartidas de pytest para aislar las instantáneas del estado del TP2."""
 
 import pytest
 

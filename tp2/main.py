@@ -1,4 +1,4 @@
-"""Local entry point for running the TP2 API."""
+"""Punto de entrada local para ejecutar la API del TP2."""
 
 if __package__:
     from .app.application import app

@@ -1,4 +1,4 @@
-"""Atomic JSON snapshots of task state for orderly service shutdown."""
+"""Instantáneas JSON atómicas del estado de las tareas para un apagado ordenado."""
 
 from datetime import datetime, timezone
 import json
@@ -12,7 +12,7 @@ SNAPSHOT_PREFIX = "estado_"
 
 
 def newest_snapshot(state_dir: Path) -> Path | None:
-    """Return the newest prior task snapshot, if one exists."""
+    """Devuelve la instantánea previa más reciente, si existe."""
     snapshots = list(state_dir.glob(f"{SNAPSHOT_PREFIX}*.json"))
     if not snapshots:
         return None
@@ -20,7 +20,7 @@ def newest_snapshot(state_dir: Path) -> Path | None:
 
 
 def write_snapshot(registry: TaskRegistry, state_dir: Path) -> Path:
-    """Atomically write all current task records to a timestamped JSON file."""
+    """Guarda atómicamente todos los registros actuales en un archivo JSON fechado."""
     state_dir.mkdir(parents=True, exist_ok=True)
     saved_at = datetime.now(timezone.utc)
     timestamp = saved_at.strftime("%Y%m%dT%H%M%S%fZ")

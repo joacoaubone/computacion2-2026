@@ -1,4 +1,4 @@
-"""Dispatch task records to their asynchronous task handlers."""
+"""Deriva los registros de tareas a sus controladores asíncronos."""
 
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
@@ -11,14 +11,14 @@ from .tasks import TaskKind, TaskRecord
 
 
 def _hash_batch(digest: bytes, iterations: int) -> bytes:
-    """Apply SHA-256 repeatedly; kept at module scope for process spawning."""
+    """Aplica SHA-256 repetidamente; se mantiene en el módulo para crear procesos."""
     for _ in range(iterations):
         digest = hashlib.sha256(digest).digest()
     return digest
 
 
 class TaskExecutor:
-    """Execute task types using lifespan-managed shared resources."""
+    """Ejecuta los tipos de tarea con recursos compartidos gestionados por el ciclo de vida."""
 
     def __init__(
         self,
@@ -41,10 +41,10 @@ class TaskExecutor:
             return await self.hash_text(
                 str(task.parameters["texto"]), int(task.parameters["iteraciones"])
             )
-        raise ValueError(f"Unsupported task kind: {task.kind}")
+        raise ValueError(f"Tipo de tarea no compatible: {task.kind}")
 
     async def hash_text(self, text: str, iterations: int) -> str:
-        """Hash UTF-8 text in bounded process-pool batches, returning hex digest."""
+        """Calcula el hash de texto UTF-8 en lotes acotados y devuelve el resumen hexadecimal."""
         digest = text.encode("utf-8")
         remaining = iterations
         while remaining > 0:
@@ -53,8 +53,8 @@ class TaskExecutor:
             try:
                 digest = await asyncio.shield(batch)
             except asyncio.CancelledError:
-                # A running process-pool call cannot be stopped mid-batch.
-                # Wait for this bounded batch before propagating cancellation.
+                # Una llamada en curso al grupo de procesos no puede detenerse a mitad del lote.
+                # Espera a que termine este lote acotado antes de propagar la cancelación.
                 await batch
                 raise
             remaining -= batch_size

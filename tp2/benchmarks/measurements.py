@@ -1,4 +1,4 @@
-"""Run repeatable local measurements for the TP2 report."""
+"""Ejecuta mediciones locales repetibles para el informe del TP2."""
 
 import argparse
 import asyncio
@@ -32,14 +32,14 @@ def wait_until_ready(base_url: str, process: subprocess.Popen[bytes]) -> None:
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise RuntimeError("benchmark server exited before becoming ready")
+            raise RuntimeError("El servidor de benchmark se cerró antes de estar listo")
         try:
             response = httpx.get(f"{base_url}/tareas", timeout=1)
             if response.status_code == 200:
                 return
         except httpx.HTTPError:
             time.sleep(0.1)
-    raise TimeoutError("benchmark server did not become ready within 30 seconds")
+    raise TimeoutError("El servidor de benchmark no estuvo listo en 30 segundos")
 
 
 async def measure_downloads(base_url: str, delay_ms: int) -> dict[str, float | int]:
@@ -77,7 +77,7 @@ def measure_event_loop_latency(base_url: str, iterations: int) -> dict[str, dict
                 params={"mode": mode, "iterations": iterations},
                 timeout=60,
             )
-            # Let Uvicorn receive the hash request before measuring the API route.
+            # Permite que Uvicorn reciba la solicitud de hash antes de medir la ruta de la API.
             time.sleep(0.05)
             started = time.perf_counter()
             response = httpx.get(f"{base_url}/tareas", timeout=60)
@@ -108,7 +108,7 @@ def wait_for_tasks(client: httpx.Client, base_url: str, task_ids: list[str]) -> 
         if pending:
             time.sleep(0.01)
     if pending:
-        raise TimeoutError(f"tasks did not finish: {sorted(pending)}")
+        raise TimeoutError(f"Las tareas no finalizaron: {sorted(pending)}")
 
 
 def measure_pool(base_url: str, iterations: int) -> list[dict[str, object]]:

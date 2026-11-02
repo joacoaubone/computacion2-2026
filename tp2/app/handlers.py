@@ -1,4 +1,4 @@
-"""Task type handlers."""
+"""Controladores para los distintos tipos de tarea."""
 
 import asyncio
 from time import perf_counter
@@ -10,7 +10,7 @@ import httpx
 async def download_urls(
     urls: Sequence[str], client: httpx.AsyncClient
 ) -> list[dict[str, object]]:
-    """Download URLs concurrently and preserve per-URL failures in results."""
+    """Descarga URLs en paralelo y conserva en los resultados los errores de cada URL."""
     results: list[dict[str, object] | None] = [None] * len(urls)
 
     async def download_one(index: int, url: str) -> None:
